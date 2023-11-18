@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
@@ -45,26 +44,22 @@ char* receive_rpc_response(int socket_fd) {
     }
 }
 
-void* process_file(void* arg) {
-	printf("Starting to process file %s\n", arg);
-    // Cast the argument to the filename
-    const char* file_name = (const char*)arg;
-	enum RPCOperation operation;
-	
-	operation = RPC_ENCRYPT;
-    // Create a client socket and connect to the server (similar to the main function)
-	int client_socket;
-	struct sockaddr_in server_addr;
-	
-	// Create socket
+int main(int argc, char* argv[]) {
+    if (argc < 2 || (argc - 1) % 3 != 2) {
+        fprintf(stderr, "Usage: %s <command> <file> [<command> <file>] ...\n", argv[0]);
+		printf("Number of args: %d", argc);
+        exit(EXIT_FAILURE);
+    }
+
+    int client_socket;
+    struct sockaddr_in server_addr;
+
+    // Create socket
     client_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (client_socket == -1) {
         perror("Socket creation failed");
         exit(EXIT_FAILURE);
     }
-	else{
-		printf("Socket creation successful\n");
-	}
 
     // Configure server address
     server_addr.sin_family = AF_INET;
@@ -81,15 +76,26 @@ void* process_file(void* arg) {
         close(client_socket);
         exit(EXIT_FAILURE);
     }
-	else{
-		printf("Successful connection to server\n");
-	}
-	
+
+    // Send RPC requests for each command and file
+    for (int i = 1; i < argc; i += 3) {
+        enum RPCOperation operation;
+        if (strcmp(argv[i], "encrypt") == 0) {
+            operation = RPC_ENCRYPT;
+        } else if (strcmp(argv[i], "decrypt") == 0) {
+            operation = RPC_DECRYPT;
+        } else {
+            fprintf(stderr, "Invalid command: %s\n", argv[i]);
+            continue;
+        }
+
+        const char* file_name = argv[i + 1];
+
         // Read text from the specified file
         FILE* file = fopen(file_name, "r");
         if (file == NULL) {
             perror("Error opening file");
-            return;
+            continue;
         }
 
         char text[1024];
@@ -111,74 +117,9 @@ void* process_file(void* arg) {
         }
 
         fclose(file);
-    //}
+    }
 
     // Cleanup and exit
     close(client_socket);
-    return 0;
-
-    //return NULL;
-}
-
-int isEqualIgnoreCase(const char* str1, const char* str2) {
-    while (*str1 && *str2) {
-        if (tolower(*str1) != tolower(*str2)) {
-            return 0; // Not equal
-        }
-        str1++;
-        str2++;
-    }
-    
-    // Check if both strings have the same length
-    return (*str1 == '\0' && *str2 == '\0');
-}
-
-int main(int argc, char* argv[]) {
-    // ...
-	printf("Arguments: %d\n", argc);
-	for (int i = 0; i < argc; i++) {
-        printf("argv[%d]: %s\n", i, argv[i]);
-    }
-
-    // Iterate through the input files
-    for (int i = 1; i < argc; i += 2) {
-        // ...
-
-        const char* file_name = argv[i+1];
-		const char* operation = argv[i];
-		const char* key_file;
-		
-		
-		
-		pthread_t thread;
-		
-		if(isEqualIgnoreCase(operation, "decrypt")){
-			key_file = argv[i+2];
-			i += 1;
-			if (pthread_create(&thread, NULL, process_file, (void*)file_name) != 0) {
-				perror("Error creating thread");
-				continue; // Continue to the next file
-			}
-		}
-		else{
-			printf("Creating thread to encrypt file %s\n", file_name);
-			if (pthread_create(&thread, NULL, process_file, (void*)file_name) != 0) {
-				perror("Error creating thread");
-				continue; // Continue to the next file
-			}
-			else{
-				printf("Thread created successfully for file: %s and operation: %s \n", file_name, operation);
-			}
-
-        // Create a thread for each file
-        //pthread_t thread;
-        
-
-        // You can optionally join the threads here if you want to wait for them to finish before proceeding.
-		}
-	}
-
-    // Cleanup and exit
-    //close(client_socket);
     return 0;
 }
