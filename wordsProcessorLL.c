@@ -7,7 +7,7 @@
 int v = 0;
 
 // Function to create a new node in the linked list
-struct WordNode* createNode(char* word) {
+struct WordNode* createWordNode(char* word) {
     struct WordNode* newNode = (struct WordNode*)malloc(sizeof(struct WordNode));
     if (newNode == NULL) {
         perror("Memory allocation failed");
@@ -34,7 +34,7 @@ void insertNode(struct WordNode** head, char* word) {
     if (current != NULL && strcmp(word, current->word) == 0) {
         current->count++;
     } else {
-        struct WordNode* newNode = createNode(word);
+        struct WordNode* newNode = createWordNode(word);
 
         if (prev == NULL) {
             // Insert at the beginning of the list
@@ -169,12 +169,36 @@ void freeWordsLinkedList(struct WordNode* head) {
     }
 }
 
-struct Words* createNode(char* word){
+struct Words* createWordsNode(char* word){
 	struct Words* newNode = (struct Words*)malloc(sizeof(struct Words));
+    newNode->word = strdup(word);
 	newNode->next = NULL;
     return newNode;
 }
 
-struct Words* extractList(WordNode* node){
-	
+struct Words* extractList(struct WordNode* node){
+	struct Words* head = createWordsNode(node->word);
+    struct WordNode* temp = node;
+    struct Words* temp2 = head;
+    while(temp->next){
+        temp = temp->next;
+        struct Words* temp3 = createWordsNode(temp->word);
+        temp2->next = temp3;
+        temp2 = temp3;
+    }
+    return head;
+}
+
+// Function to print the linked list and return the total number of words
+int printWordssLinkedList(struct Words* head) {
+    int totalWords = 0;
+
+    while (head != NULL) {
+        //printf("%s appears %d times\n", head->word, head->count);
+		printf("%s \n", head->word);
+        //totalWords += head->count;
+        head = head->next;
+    }
+
+    return totalWords;
 }

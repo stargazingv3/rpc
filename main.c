@@ -42,7 +42,10 @@ int main(int argc, char* argv[]) {
             struct WordNode* wordList = countWordsWithLinkedList(file);
             fclose(file);
 			//printf("\n\nThe file %s has: \n",argv[i]);
-            int wordsInFile = printWordsLinkedList(wordList);
+            //int wordsInFile = printWordsLinkedList(wordList);
+            struct Words* temp = extractList(wordList);
+            printWordssLinkedList(temp);
+            int wordsInFile = 10;
 			int uniqueWords = getLinkedListLength(wordList);
 			
             //printf("\nThe total number of words is %d; the number of different words is %d.\n",
