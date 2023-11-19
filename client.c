@@ -9,6 +9,9 @@
 
 #define SERVER_IP "10.100.240.204"
 #define SERVER_PORT 8080
+#define MAGIC_NUMBER "aa231fd13)@!!@!%asdj3jfddjlmbt"
+//const char* targetString = "aa231fd13)@!!@!%asdj3jfddjlmbt";
+
 
 // Define the RPC protocol operations
 enum RPCOperation {
@@ -22,6 +25,11 @@ struct RPCRequest {
     char text[1024];
     int key;
 };
+
+typedef struct Node {
+    char* word;
+    struct Node* next;
+} Node;
 
 // Function to send an RPC request (client stub)
 void send_rpc_request(int socket_fd, enum RPCOperation operation, const char* text) {
@@ -45,11 +53,75 @@ char* receive_rpc_response(int socket_fd) {
     }
 }
 
+void* decryptFile(char* file_name){
+    printf("Decrypting file %s\n", file_name);
+}
+
+void* encryptFile(char* file_name){
+    printf("Encrypting file %s\n", file_name);
+    char command[256];
+    FILE *fp;
+    char buffer[1024]; // Adjust buffer size as needed
+
+    snprintf(command, sizeof(command), "./word-count %s", file_name);
+
+    fp = popen(command, "r");
+    if (fp == NULL) {
+        perror("Failed to run command");
+        exit(1);
+    }
+
+    Node* head = NULL;
+
+    while (fgets(buffer, sizeof(buffer)-1, fp) != NULL) {
+        buffer[strcspn(buffer, "\n")] = 0; // Remove newline character
+        appendNode(&head, buffer);
+    }
+
+    pclose(fp);
+
+    // Print and free the list
+    Node* current = head;
+    while (current != NULL) {
+        printf("Input: %s\n", current->word);
+        current = current->next;
+    }
+
+    freeList(head);
+    return 0;
+}
+
 void* process_file(void* arg) {
 	printf("Starting to process file %s\n", arg);
     // Cast the argument to the filename
     const char* file_name = (const char*)arg;
-	enum RPCOperation operation;
+    FILE* file = fopen(file_name, "r");
+    if (file == NULL) {
+        perror("Failed to open file");
+        return 1;
+    }
+
+    size_t len = strlen(MAGIC_NUMBER);
+
+    char buf[len + 1]; 
+    if (fread(buf, 1, len, file) == len) {
+        buf[len] = '\0';
+        if (strcmp(buf, MAGIC_NUMBER) == 0) {
+            // First X characters match target string, call decryptFile
+            decryptFile(file_name);
+        } else {
+            // First X characters do not match, call encryptFile
+            encryptFile(file_name);
+        }
+    }   
+    else {
+        fprintf(stderr, "Error reading from the file.\n");
+    }
+
+    fclose(file);
+    //return 0;
+
+	/*enum RPCOperation operation;
 	
 	operation = RPC_ENCRYPT;
     // Create a client socket and connect to the server (similar to the main function)
@@ -114,7 +186,7 @@ void* process_file(void* arg) {
     //}
 
     // Cleanup and exit
-    close(client_socket);
+    close(client_socket);*/
     return 0;
 
     //return NULL;
@@ -141,18 +213,16 @@ int main(int argc, char* argv[]) {
     }
 
     // Iterate through the input files
-    for (int i = 1; i < argc; i += 2) {
+    /*for (int i = 1; i < argc; i += 2) {
         // ...
 
         const char* file_name = argv[i+1];
 		const char* operation = argv[i];
 		const char* key_file;
 		
+		pthread_t thread;*/
 		
-		
-		pthread_t thread;
-		
-		if(isEqualIgnoreCase(operation, "decrypt")){
+		/*if(isEqualIgnoreCase(operation, "decrypt")){
 			key_file = argv[i+2];
 			i += 1;
 			if (pthread_create(&thread, NULL, process_file, (void*)file_name) != 0) {
@@ -162,23 +232,62 @@ int main(int argc, char* argv[]) {
 		}
 		else{
 			printf("Creating thread to encrypt file %s\n", file_name);
-			if (pthread_create(&thread, NULL, process_file, (void*)file_name) != 0) {
+			if (pthread_create(&thread, NULL, process_file, (void*)argv[1]) != 0) {
 				perror("Error creating thread");
 				continue; // Continue to the next file
 			}
 			else{
 				printf("Thread created successfully for file: %s and operation: %s \n", file_name, operation);
-			}
+			}*/
+        process_file((void*) argv[1]);
 
         // Create a thread for each file
         //pthread_t thread;
         
 
         // You can optionally join the threads here if you want to wait for them to finish before proceeding.
-		}
-	}
+		//}
+	//}
 
     // Cleanup and exit
     //close(client_socket);
     return 0;
 }
+
+// Function to create a new node
+Node* createNode(const char* word) {
+    Node* newNode = (Node*)malloc(sizeof(Node));
+    if (!newNode) {
+        perror("Failed to allocate memory for node");
+        exit(1);
+    }
+    newNode->word = strdup(word); // Duplicate the word
+    newNode->next = NULL;
+    return newNode;
+}
+
+// Function to append a node to the list
+void appendNode(Node** head, const char* word) {
+    Node* newNode = createNode(word);
+    if (*head == NULL) {
+        *head = newNode;
+    } else {
+        Node* current = *head;
+        while (current->next != NULL) {
+            current = current->next;
+        }
+        current->next = newNode;
+    }
+}
+
+// Function to free the list
+void freeList(Node* head) {
+    Node* tmp;
+    while (head != NULL) {
+        tmp = head;
+        head = head->next;
+        free(tmp->word);
+        free(tmp);
+    }
+}
+
