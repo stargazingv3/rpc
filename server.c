@@ -3,7 +3,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
-#include <pthread.h>
 
 #define PORT 8080
 #define MAX_CLIENTS 10
@@ -87,14 +86,13 @@ void* handle_client(void* client_socket) {
 		printf("Handling Client\n");
 		
         if (response) {
-			//printf(response);
             send(socket_fd, response, strlen(response), 0);
-            //free(response);
+            free(response);
         }
     }
 	printf("Finished handling client\n");
     close(socket_fd);
-    //free(client_socket);
+    free(client_socket);
     return NULL;
 }
 
@@ -143,10 +141,11 @@ int main() {
         printf("Connection accepted from %s:%d\n", inet_ntoa(new_addr.sin_addr), ntohs(new_addr.sin_port));
 
         // Create a thread to handle the client
-        if (pthread_create(&tid[clients_count], NULL, handle_client, &new_socket) != 0) {
+        /*if (pthread_create(&tid[clients_count], NULL, handle_client, &new_socket) != 0) {
             perror("Error creating thread");
             exit(EXIT_FAILURE);
-        }
+        }*/
+        handle_client(&new_socket);
 
         clients_count++;
 
@@ -162,4 +161,3 @@ int main() {
 
     return 0;
 }
-

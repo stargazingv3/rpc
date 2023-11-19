@@ -22,7 +22,8 @@ enum RPCOperation {
 // Structure for an RPC request
 struct RPCRequest {
     enum RPCOperation operation;
-    char text[1024];
+    //char text[1024];
+    char* word;
     int key;
 };
 
@@ -31,13 +32,95 @@ typedef struct Node {
     struct Node* next;
 } Node;
 
+struct RPCRequest* create_RPC_Request(enum RPCOperation operation, const char* text){
+    struct RPCRequest* request = malloc(sizeof(struct RPCRequest));
+    request->operation = operation;
+    request->word = strdup(text);
+    //printf("Recieved: %s, Setting word to: %s\n", text, strdup(text));
+    //printf("%s\n", request.word);
+    return request;
+}
+
+int connect_to_server(){
+    int client_socket;
+	struct sockaddr_in server_addr;
+	
+	// Create socket
+    client_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (client_socket == -1) {
+        perror("Socket creation failed");
+        exit(EXIT_FAILURE);
+    }
+	else{
+		printf("Socket creation successful\n");
+	}
+
+    // Configure server address
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(SERVER_PORT);
+    if (inet_pton(AF_INET, SERVER_IP, &server_addr.sin_addr) <= 0) {
+        perror("Invalid server IP address");
+        close(client_socket);
+        exit(EXIT_FAILURE);
+    }
+
+    // Connect to the server
+    if (connect(client_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
+        perror("Connection to server failed");
+        close(client_socket);
+        exit(EXIT_FAILURE);
+    }
+	else{
+		printf("Successful connection to server\n");
+	}
+    //send(client_socket, &request, sizeof(request), 0);
+    return client_socket;
+}
+
+void send_RPC_request(int socket, struct RPCRequest* request){
+    // Create a client socket and connect to the server (similar to the main function)
+	/*int client_socket;
+	struct sockaddr_in server_addr;
+	
+	// Create socket
+    client_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (client_socket == -1) {
+        perror("Socket creation failed");
+        exit(EXIT_FAILURE);
+    }
+	else{
+		printf("Socket creation successful\n");
+	}
+
+    // Configure server address
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(SERVER_PORT);
+    if (inet_pton(AF_INET, SERVER_IP, &server_addr.sin_addr) <= 0) {
+        perror("Invalid server IP address");
+        close(client_socket);
+        exit(EXIT_FAILURE);
+    }
+
+    // Connect to the server
+    if (connect(client_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
+        perror("Connection to server failed");
+        close(client_socket);
+        exit(EXIT_FAILURE);
+    }
+	else{
+		printf("Successful connection to server\n");
+	}*/
+    send(socket, &request, sizeof(request), 0);
+    //return client_socket;
+}
+
 // Function to send an RPC request (client stub)
-void send_rpc_request(int socket_fd, enum RPCOperation operation, const char* text) {
+/*void send_rpc_request(int socket_fd, enum RPCOperation operation, const char* text) {
     struct RPCRequest request;
     request.operation = operation;
     strncpy(request.text, text, sizeof(request.text));
     send(socket_fd, &request, sizeof(request), 0);
-}
+}*/
 
 // Function to receive an RPC response (client stub)
 char* receive_rpc_response(int socket_fd) {
@@ -63,7 +146,9 @@ void* encryptFile(char* file_name){
     FILE *fp;
     char buffer[1024]; // Adjust buffer size as needed
 
+    //printf("Starting command\n");
     snprintf(command, sizeof(command), "./word-count %s", file_name);
+   // printf("Finished running command\n");
 
     fp = popen(command, "r");
     if (fp == NULL) {
@@ -81,9 +166,34 @@ void* encryptFile(char* file_name){
     pclose(fp);
 
     // Print and free the list
-    Node* current = head;
+    /*Node* current = head;
     while (current != NULL) {
         printf("Input: %s\n", current->word);
+        current = current->next;
+    }*/
+
+    int socket = connect_to_server();
+
+    Node* current = head;
+    current = head;
+    while(current->next){
+        enum RPCOperation operation = RPC_ENCRYPT;
+	    //operation = RPC_ENCRYPT;
+        //printf("Creating request with word: %s\n", current->word);
+        printf("Doing operation: %d\n", operation);
+        struct RPCRequest* request = create_RPC_Request(operation, current->word);
+        //printf("Sending Request: %s\n", request->word);
+        //int socket = send_RPC_request(request);
+        printf("Sending request for operation: %d, word: %s\n", request->operation, request->word);
+        send_RPC_request(socket, request);
+        char* response = receive_rpc_response(socket);
+        if (response) {
+                printf("Server Response:\n%s\n", response);
+                free(response);
+            }
+        /*else {
+            fprintf(stderr, "\n");
+        }*/
         current = current->next;
     }
 
