@@ -17,28 +17,28 @@ enum RPCOperation {
 // Structure for an RPC request
 struct RPCRequest {
     enum RPCOperation operation;
-    char* word;
-    int key;
+    char word[1024];
 };
 
 struct RPCResponse {
-    char* word;
+    //char* word;
+    char word[1024];
     int key;
 };
 
-struct RPCResponse* create_RPC_Response(const char* text, int key){
+struct RPCResponse* create_RPC_Response(const char* word, int key){
     struct RPCResponse* response = malloc(sizeof(struct RPCResponse));
-    response->word = strdup(text);
-    if(key > 0){
-        response->key = key;
-    }
+    //response->word = strdup(text);
+    strncpy(response->word, word, sizeof(response->word) - 1);
+    response->word[sizeof(response->word) - 1] = '\0';
+    response->key = key;
     //printf("Recieved: %s, Setting word to: %s\n", text, strdup(text));
     //printf("%s\n", request.word);
     return response;
 }
 
 void send_RPC_response(int socket, struct RPCResponse* response){
-    send(socket, response, sizeof(response), 0);
+    send(socket, response, sizeof(struct RPCResponse), 0);
 }
 
 char* server_encrypt(const char* text) {
@@ -101,20 +101,20 @@ struct RPCResponse* handle_rpc_request(const struct RPCRequest* request) {
 void* handle_client(void* client_socket) {
 	
     int socket_fd = *(int*)client_socket;
-    struct RPCRequest* request;
+    struct RPCRequest request;
     struct RPCResponse* response;
     //char* response;
 	
-    ssize_t bytes_received = recv(socket_fd, &request, sizeof(request), 0);
-    if (bytes_received > 0) {
-    //while (recv(socket_fd, &request, sizeof(request), 0) > 0) {
-	    printf("Received request for operation: %d, word: %s\n", request->operation, request->word);
+    //ssize_t bytes_received = recv(socket_fd, &request, sizeof(request), 0);
+    //if (bytes_received > 0) {
+    while (recv(socket_fd, &request, sizeof(request), 0) > 0) {
+	    printf("Received request for operation: %d, word: %s\n", request.operation, request.word);
         response = handle_rpc_request(&request);
 		printf("Handling Client\n");
 		
         if (response) {
 			//printf(response);
-            printf("Replying with word: %s, key: %s\n", response->word, response->key);
+            printf("Replying with word: %s, key: %d\n", response->word, response->key);
             send_RPC_response(socket_fd, response);
             //send(socket_fd, response, strlen(response), 0);
             //free(response);

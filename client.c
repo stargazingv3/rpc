@@ -22,13 +22,12 @@ enum RPCOperation {
 // Structure for an RPC request
 struct RPCRequest {
     enum RPCOperation operation;
-    //char text[1024];
-    char* word;
-    int key;
+    char word[1024];
+    //char word[];
 };
 
 struct RPCResponse {
-    char* word;
+    char word[1024];
     int key;
 };
 
@@ -38,13 +37,23 @@ typedef struct Node {
     struct Node* next;
 } Node;
 
-struct RPCRequest* create_RPC_Request(enum RPCOperation operation, const char* text){
+struct RPCRequest* create_RPC_Request(enum RPCOperation operation, const char* word){
     struct RPCRequest* request = malloc(sizeof(struct RPCRequest));
     request->operation = operation;
-    request->word = strdup(text);
+    //request->word = strcpy(requword);
+    //strcpy(request->word, word);
     //printf("Recieved: %s, Setting word to: %s\n", text, strdup(text));
     //printf("%s\n", request.word);
+    strncpy(request->word, word, sizeof(request->word) - 1);
+    request->word[sizeof(request->word) - 1] = '\0';
     return request;
+}
+
+void free_RPC_Request(struct RPCRequest* request) {
+    if (request) {
+        free(request->word); // Free the memory for the word field
+        free(request); // Free the RPCRequest structure itself
+    }
 }
 
 int connect_to_server(){
@@ -116,7 +125,7 @@ void send_RPC_request(int socket, struct RPCRequest* request){
 	else{
 		printf("Successful connection to server\n");
 	}*/
-    send(socket, request, sizeof(request), 0);
+    send(socket, request, sizeof(struct RPCRequest), 0);
     //return client_socket;
 }
 
@@ -131,18 +140,24 @@ void send_RPC_request(int socket, struct RPCRequest* request){
 // Function to receive an RPC response (client stub) hey
 struct RPCResponse* receive_RPC_response(int socket_fd) {
     //char buffer[1024];
-    struct RPCResponse* response;
-    ssize_t bytes_received =recv(socket_fd, &response, sizeof(response), 0);
+    struct RPCResponse* response = malloc(sizeof(struct RPCResponse));
+    //ssize_t bytes_received =recv(socket_fd, &response, sizeof(response), 0);
+    while (recv(socket_fd, &response, sizeof(struct RPCResponse), 0) > 0) {
     //ssize_t bytes_received = recv(socket_fd, buffer, sizeof(buffer), 0);
-    if (bytes_received > 0) {
+    //if (bytes_received > 0) {
+        if(response){
         //buffer[bytes_received] = '\0';
         //return strdup(buffer);
-        return response;
-    } else {
-		//printf("Buffer received: %s", strdup(buffer));
-        perror("Error receiving response from server");
-        return NULL;
+        
+            return response;
+        } else {
+            //printf("Buffer received: %s", strdup(buffer));
+            perror("Error receiving response from server");
+            return NULL;
+        }
     }
+    perror("Error receiving response from server");
+    return NULL;
 }
 
 void* decryptFile(char* file_name){
@@ -222,7 +237,7 @@ void* encryptFile(char* file_name){
         struct RPCRequest* request = create_RPC_Request(operation, current->word);
         //printf("Sending Request: %s\n", request->word);
         //int socket = send_RPC_request(request);
-        printf("Sending request for operation: %d, word: %s\n", request->operation, request->word);
+        printf("Sending request for operation: %d, word: %s, size: %d\n", request->operation, request->word, sizeof(request));
         send_RPC_request(socket, request);
         //char* response = receive_RPC_response(socket);
         struct RPCResponse* response = receive_RPC_response(socket);
@@ -245,7 +260,7 @@ void* encryptFile(char* file_name){
         struct RPCRequest* request = create_RPC_Request(operation, current->word);
         //printf("Sending Request: %s\n", request->word);
         //int socket = send_RPC_request(request);
-        printf("Sending request for operation: %d, word: %s\n", request->operation, request->word);
+        printf("Sending request for operation: %d, word: %s, size: %d\n", request->operation, request->word, sizeof(request));
         send_RPC_request(socket, request);
         struct RPCResponse* response = receive_RPC_response(socket);
         if (response) {
