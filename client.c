@@ -51,7 +51,7 @@ struct RPCRequest* create_RPC_Request(enum RPCOperation operation, const char* w
 
 void free_RPC_Request(struct RPCRequest* request) {
     if (request) {
-        free(request->word); // Free the memory for the word field
+        //free(request->word); // Free the memory for the word field
         free(request); // Free the RPCRequest structure itself
     }
 }
@@ -125,7 +125,7 @@ void send_RPC_request(int socket, struct RPCRequest* request){
 	else{
 		printf("Successful connection to server\n");
 	}*/
-    send(socket, request, sizeof(struct RPCRequest), 0);
+    send(socket, request, sizeof(*request), 0);
     //return client_socket;
 }
 
@@ -141,10 +141,10 @@ void send_RPC_request(int socket, struct RPCRequest* request){
 struct RPCResponse* receive_RPC_response(int socket_fd) {
     //char buffer[1024];
     struct RPCResponse* response = malloc(sizeof(struct RPCResponse));
-    //ssize_t bytes_received =recv(socket_fd, &response, sizeof(response), 0);
-    while (recv(socket_fd, &response, sizeof(struct RPCResponse), 0) > 0) {
+    ssize_t bytes_received = recv(socket_fd, response, sizeof(struct RPCResponse), 0);
+    //while (recv(socket_fd, response, sizeof(struct RPCResponse), 0) > 0) {
     //ssize_t bytes_received = recv(socket_fd, buffer, sizeof(buffer), 0);
-    //if (bytes_received > 0) {
+        if (bytes_received > 0) {
         if(response){
         //buffer[bytes_received] = '\0';
         //return strdup(buffer);

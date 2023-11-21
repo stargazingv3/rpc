@@ -38,7 +38,7 @@ struct RPCResponse* create_RPC_Response(const char* word, int key){
 }
 
 void send_RPC_response(int socket, struct RPCResponse* response){
-    send(socket, response, sizeof(struct RPCResponse), 0);
+    send(socket, response, sizeof(*response), 0);
 }
 
 char* server_encrypt(const char* text) {
