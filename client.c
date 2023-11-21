@@ -27,6 +27,12 @@ struct RPCRequest {
     int key;
 };
 
+struct RPCResponse {
+    char* word;
+    int key;
+};
+
+
 typedef struct Node {
     char* word;
     struct Node* next;
@@ -110,7 +116,7 @@ void send_RPC_request(int socket, struct RPCRequest* request){
 	else{
 		printf("Successful connection to server\n");
 	}*/
-    send(socket, &request, sizeof(request), 0);
+    send(socket, request, sizeof(request), 0);
     //return client_socket;
 }
 
@@ -122,13 +128,16 @@ void send_RPC_request(int socket, struct RPCRequest* request){
     send(socket_fd, &request, sizeof(request), 0);
 }*/
 
-// Function to receive an RPC response (client stub)
-char* receive_rpc_response(int socket_fd) {
-    char buffer[1024];
-    ssize_t bytes_received = recv(socket_fd, buffer, sizeof(buffer), 0);
+// Function to receive an RPC response (client stub) hey
+struct RPCResponse* receive_RPC_response(int socket_fd) {
+    //char buffer[1024];
+    struct RPCResponse* response;
+    ssize_t bytes_received =recv(socket_fd, &response, sizeof(response), 0);
+    //ssize_t bytes_received = recv(socket_fd, buffer, sizeof(buffer), 0);
     if (bytes_received > 0) {
-        buffer[bytes_received] = '\0';
-        return strdup(buffer);
+        //buffer[bytes_received] = '\0';
+        //return strdup(buffer);
+        return response;
     } else {
 		//printf("Buffer received: %s", strdup(buffer));
         perror("Error receiving response from server");
@@ -139,6 +148,35 @@ char* receive_rpc_response(int socket_fd) {
 void* decryptFile(char* file_name){
     printf("Decrypting file %s\n", file_name);
 }
+
+void* handle_server_encryption(char* word, int key, char* file_name){
+    size_t file_size = strlen(file_name) + strlen("_dec") + 1;
+    char* name = (char*)malloc(file_size);
+    if(name == NULL){
+        fprintf(stderr, "Memory allocation error\n");
+        return;
+    }
+
+    snprintf(name, file_size, "%s_dec", file_name);
+    FILE* file = fopen(name, "a");
+
+    size_t entry_size = strlen(word); 
+
+    char entry[256];
+    snprintf(entry, sizeof(entry), "{%s : %d}\n", word, key);
+
+    // Write the formatted data to the file
+    fprintf(file, "%s", entry);
+    printf("Writing %s to file\n", entry);
+
+    // Close the file
+    fclose(file);
+
+    // Free the allocated memory for new_file_name
+    free(name);
+    return;
+}
+
 
 void* encryptFile(char* file_name){
     printf("Encrypting file %s\n", file_name);
@@ -186,16 +224,35 @@ void* encryptFile(char* file_name){
         //int socket = send_RPC_request(request);
         printf("Sending request for operation: %d, word: %s\n", request->operation, request->word);
         send_RPC_request(socket, request);
-        char* response = receive_rpc_response(socket);
+        //char* response = receive_RPC_response(socket);
+        struct RPCResponse* response = receive_RPC_response(socket);
         if (response) {
-                printf("Server Response:\n%s\n", response);
-                free(response);
-            }
+            //printf("Server Response:\n%s\n", response);
+            handle_server_encryption(response->word, response->key, file_name);
+            free(response);
+        }
         /*else {
             fprintf(stderr, "\n");
         }*/
         current = current->next;
     }
+
+    //Single Word
+    enum RPCOperation operation = RPC_ENCRYPT;
+	    //operation = RPC_ENCRYPT;
+        //printf("Creating request with word: %s\n", current->word);
+        printf("Doing operation: %d\n", operation);
+        struct RPCRequest* request = create_RPC_Request(operation, current->word);
+        //printf("Sending Request: %s\n", request->word);
+        //int socket = send_RPC_request(request);
+        printf("Sending request for operation: %d, word: %s\n", request->operation, request->word);
+        send_RPC_request(socket, request);
+        struct RPCResponse* response = receive_RPC_response(socket);
+        if (response) {
+            //printf("Server Response:\n%s\n", response);
+            handle_server_encryption(response->word, response->key, file_name);
+            free(response);
+        }
 
     freeList(head);
     return 0;
@@ -225,7 +282,9 @@ void* process_file(void* arg) {
         }
     }   
     else {
-        fprintf(stderr, "Error reading from the file.\n");
+        encryptFile(file_name);
+        //printf("Read in: %s\n", buf);
+        //fprintf(stderr, "Error reading from the file.\n");
     }
 
     fclose(file);

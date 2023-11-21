@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <pthread.h>
 
 #define PORT 8080
 #define MAX_CLIENTS 10
@@ -16,9 +17,29 @@ enum RPCOperation {
 // Structure for an RPC request
 struct RPCRequest {
     enum RPCOperation operation;
-    char text[1024];
-	int key;
+    char* word;
+    int key;
 };
+
+struct RPCResponse {
+    char* word;
+    int key;
+};
+
+struct RPCResponse* create_RPC_Response(const char* text, int key){
+    struct RPCResponse* response = malloc(sizeof(struct RPCResponse));
+    response->word = strdup(text);
+    if(key > 0){
+        response->key = key;
+    }
+    //printf("Recieved: %s, Setting word to: %s\n", text, strdup(text));
+    //printf("%s\n", request.word);
+    return response;
+}
+
+void send_RPC_response(int socket, struct RPCResponse* response){
+    send(socket, response, sizeof(response), 0);
+}
 
 char* server_encrypt(const char* text) {
     printf("Encrypting, returning %s\n", text);
@@ -40,9 +61,9 @@ char* server_encrypt(const char* text) {
         exit(EXIT_FAILURE);
     }
 
-    printf("Successful strdup, attempting return %s\n", text);
+    printf("Successful strdup, attempting return %s\n", copy);
 
-    return text;
+    return copy;
 }
 
 
@@ -54,45 +75,54 @@ char* server_decrypt(const char* text) {
 }
 	
 // Function to handle an RPC request
-char* handle_rpc_request(const struct RPCRequest* request) {
+struct RPCResponse* handle_rpc_request(const struct RPCRequest* request) {
     char* result = NULL;
-	printf("Request info: %s\n", request->operation);
+    printf("Request info: %d for %s\n", request->operation, request->word);
     switch (request->operation) {
         case RPC_ENCRYPT:
 			printf("Attempting Encryption\n");
-            result = server_encrypt(request->text);
+            result = server_encrypt(request->word);
 			printf("Encryption finished, received %s\n", result);
-            break;
+            struct RPCResponse* response = create_RPC_Response(result, -1);
+            return response;    
+            //break;
         case RPC_DECRYPT:
-            result = server_decrypt(request->text);
+            result = server_decrypt(request->word);
             break;
         default:
 			printf("Given empty RPCRequest\n");
             // Invalid operation
             break;
     }
-    return result;
+    return NULL;
 }
 
 // Thread function to handle client requests
 void* handle_client(void* client_socket) {
 	
     int socket_fd = *(int*)client_socket;
-    struct RPCRequest request;
-    char* response;
+    struct RPCRequest* request;
+    struct RPCResponse* response;
+    //char* response;
 	
-    while (recv(socket_fd, &request, sizeof(request), 0) > 0) {
+    ssize_t bytes_received = recv(socket_fd, &request, sizeof(request), 0);
+    if (bytes_received > 0) {
+    //while (recv(socket_fd, &request, sizeof(request), 0) > 0) {
+	    printf("Received request for operation: %d, word: %s\n", request->operation, request->word);
         response = handle_rpc_request(&request);
 		printf("Handling Client\n");
 		
         if (response) {
-            send(socket_fd, response, strlen(response), 0);
-            free(response);
+			//printf(response);
+            printf("Replying with word: %s, key: %s\n", response->word, response->key);
+            send_RPC_response(socket_fd, response);
+            //send(socket_fd, response, strlen(response), 0);
+            //free(response);
         }
     }
 	printf("Finished handling client\n");
     close(socket_fd);
-    free(client_socket);
+    //free(client_socket);
     return NULL;
 }
 
@@ -145,7 +175,8 @@ int main() {
             perror("Error creating thread");
             exit(EXIT_FAILURE);
         }*/
-        handle_client(&new_socket);
+	
+	    handle_client(&new_socket);
 
         clients_count++;
 
@@ -161,3 +192,4 @@ int main() {
 
     return 0;
 }
+
