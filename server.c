@@ -4,6 +4,9 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <errno.h>
 
 #define PORT 8080
 #define MAX_CLIENTS 10
@@ -18,6 +21,7 @@ enum RPCOperation {
 struct RPCRequest {
     enum RPCOperation operation;
     char word[1024];
+    int key;
 };
 
 struct RPCResponse {
@@ -26,12 +30,17 @@ struct RPCResponse {
     int key;
 };
 
-struct RPCResponse* create_RPC_Response(const char* word, int key){
+struct Encrypted {
+    char* word;
+    int key;
+};
+
+struct RPCResponse* create_RPC_Response(struct Encrypted* result){
     struct RPCResponse* response = malloc(sizeof(struct RPCResponse));
     //response->word = strdup(text);
-    strncpy(response->word, word, sizeof(response->word) - 1);
+    strncpy(response->word, result->word, sizeof(response->word) - 1);
     response->word[sizeof(response->word) - 1] = '\0';
-    response->key = key;
+    response->key = result->key;
     //printf("Recieved: %s, Setting word to: %s\n", text, strdup(text));
     //printf("%s\n", request.word);
     return response;
@@ -41,7 +50,8 @@ void send_RPC_response(int socket, struct RPCResponse* response){
     send(socket, response, sizeof(*response), 0);
 }
 
-char* server_encrypt(const char* text) {
+struct Encrypted* server_encrypt(const char* text) {
+    int key = 1;
     printf("Encrypting, returning %s\n", text);
 
     // Check if text is NULL
@@ -63,32 +73,42 @@ char* server_encrypt(const char* text) {
 
     printf("Successful strdup, attempting return %s\n", copy);
 
-    return copy;
+    struct Encrypted* ret = malloc(sizeof(struct Encrypted));
+    ret->word = copy;
+    ret->key = key;
+
+    return ret;
 }
 
-
 // Function to decrypt the text (server stub)
-char* server_decrypt(const char* text) {
+struct Encrypted* server_decrypt(const char* text) {
     // Implement the server-side decryption logic here
     // This is just a placeholder
-    return text;
+    printf("Finished decrypting, returning %s\n", text);
+    struct Encrypted* ret = malloc(sizeof(struct Encrypted));
+    ret->word = text;
+    return ret;
 }
 	
 // Function to handle an RPC request
 struct RPCResponse* handle_rpc_request(const struct RPCRequest* request) {
-    char* result = NULL;
+    struct Encrypted* result = malloc(sizeof(struct Encrypted));
     printf("Request info: %d for %s\n", request->operation, request->word);
+    struct RPCResponse* response;
     switch (request->operation) {
         case RPC_ENCRYPT:
 			printf("Attempting Encryption\n");
             result = server_encrypt(request->word);
-			printf("Encryption finished, received %s\n", result);
-            struct RPCResponse* response = create_RPC_Response(result, -1);
+			printf("Encryption finished, received %s\n", result->word);
+            response = create_RPC_Response(result);
             return response;    
             //break;
         case RPC_DECRYPT:
+            printf("Decrypting with key: %d\n", request->key);
             result = server_decrypt(request->word);
-            break;
+            response = create_RPC_Response(result);
+            return response;
+            //break;
         default:
 			printf("Given empty RPCRequest\n");
             // Invalid operation
@@ -101,13 +121,22 @@ struct RPCResponse* handle_rpc_request(const struct RPCRequest* request) {
 void* handle_client(void* client_socket) {
 	
     int socket_fd = *(int*)client_socket;
+    struct timeval tv;
+    tv.tv_sec = 5;  // Set the timeout in seconds
+    tv.tv_usec = 0; // ...and microseconds (0 in this case)
+
+    if (setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) < 0) {
+        perror("setsockopt failed");
+        // Handle the error. You might want to close the socket or exit the program.
+    }
     struct RPCRequest request;
     struct RPCResponse* response;
     //char* response;
 	
     //ssize_t bytes_received = recv(socket_fd, &request, sizeof(request), 0);
     //if (bytes_received > 0) {
-    while (recv(socket_fd, &request, sizeof(request), 0) > 0) {
+    ssize_t bytes_received;
+    while ((bytes_received = recv(socket_fd, &request, sizeof(request), 0)) > 0) {
 	    printf("Received request for operation: %d, word: %s\n", request.operation, request.word);
         response = handle_rpc_request(&request);
 		printf("Handling Client\n");
@@ -119,7 +148,19 @@ void* handle_client(void* client_socket) {
             //send(socket_fd, response, strlen(response), 0);
             //free(response);
         }
+        else{
+            printf("No response received\n");
+        }
     }
+    if (bytes_received < 0) {
+    if (errno == EWOULDBLOCK || errno == EAGAIN) {
+        printf("recv timed out\n");
+        // Handle timeout-specific logic
+    } else {
+        perror("recv error");
+        // Handle other errors
+    }
+}   
 	printf("Finished handling client\n");
     close(socket_fd);
     //free(client_socket);
