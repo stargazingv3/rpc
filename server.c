@@ -10,6 +10,7 @@
 
 #define PORT 8080
 #define MAX_CLIENTS 10
+#define MAX_SHIFT 25
 
 // Define the RPC protocol operations
 enum RPCOperation {
@@ -50,7 +51,7 @@ void send_RPC_response(int socket, struct RPCResponse* response){
     send(socket, response, sizeof(*response), 0);
 }
 
-struct Encrypted* server_encrypt(const char* text) {
+/*struct Encrypted* server_encrypt(const char* text) {
     int key = 1;
     printf("Encrypting, returning %s\n", text);
 
@@ -88,6 +89,87 @@ struct Encrypted* server_decrypt(const char* text) {
     struct Encrypted* ret = malloc(sizeof(struct Encrypted));
     ret->word = text;
     return ret;
+}*/
+
+// Function to generate a random number between 1 and 25
+int generate_random_key() {
+    return (rand() % MAX_SHIFT) + 1;
+}
+
+// Function to apply Caesar cipher encryption
+char* caesar_cipher_encrypt(const char* text, int key) {
+    int length = strlen(text);
+    char* encrypted = (char*)malloc(length + 1);
+    
+    if (encrypted == NULL) {
+        perror("Memory allocation failed");
+        exit(EXIT_FAILURE);
+    }
+
+    int i;
+
+    for (i = 0; i < length; i++) {
+        char c = text[i];
+
+        if (isalpha(c)) {
+            char base = islower(c) ? 'a' : 'A';
+            encrypted[i] = (c - base + key) % 26 + base;
+        } else {
+            encrypted[i] = c; // Non-alphabetic characters remain unchanged
+        }
+    }
+
+    encrypted[length] = '\0';
+    return encrypted;
+}
+
+// Function to apply Caesar cipher decryption
+char* caesar_cipher_decrypt(const char* text, int key) {
+    return caesar_cipher_encrypt(text, 26 - key); // Decryption is the reverse of encryption
+}
+
+// Encode the text using Caesar cipher
+struct Encrypted* server_encrypt(const char* text) {
+    srand(time(NULL)); // Seed the random number generator
+    int key = generate_random_key();
+    printf("Encrypting, returning %s\n", text);
+
+    // Check if text is NULL
+    if (text == NULL) {
+        // Handle the case where text is NULL (optional)
+        perror("Input text is NULL");
+        return NULL;
+    }
+
+    // Encrypt the text using Caesar cipher
+    char* encrypted_text = caesar_cipher_encrypt(text, key);
+
+    // Create an Encrypted struct to store the result
+    struct Encrypted* ret = (struct Encrypted*)malloc(sizeof(struct Encrypted));
+    ret->word = encrypted_text;
+    ret->key = key;
+
+    return ret;
+}
+
+// Decode the text using Caesar cipher
+struct Encrypted* server_decrypt(const char* text, int key) {
+    // Check if text is NULL
+    if (text == NULL) {
+        // Handle the case where text is NULL (optional)
+        perror("Input text is NULL");
+        return NULL;
+    }
+
+    // Decrypt the text using Caesar cipher
+    char* decrypted_text = caesar_cipher_decrypt(text, key);
+
+    // Create an Encrypted struct to store the result
+    struct Encrypted* ret = (struct Encrypted*)malloc(sizeof(struct Encrypted));
+    ret->word = decrypted_text;
+    ret->key = key;
+
+    return ret;
 }
 	
 // Function to handle an RPC request
@@ -105,7 +187,7 @@ struct RPCResponse* handle_rpc_request(const struct RPCRequest* request) {
             //break;
         case RPC_DECRYPT:
             printf("Decrypting with key: %d\n", request->key);
-            result = server_decrypt(request->word);
+            result = server_decrypt(request->word, request->key);
             response = create_RPC_Response(result);
             return response;
             //break;
