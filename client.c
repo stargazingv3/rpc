@@ -265,6 +265,7 @@ void* decryptFile(const char* file_name){
     struct RPCRequest* request;
 
     int socket = connect_to_server();
+    printf("\nThread %ld connected to server\n", pthread_self());
 
     size_t file_size = strlen(file_name) + strlen("_dec") + 1;
     char* name = (char*)malloc(file_size);
@@ -278,25 +279,30 @@ void* decryptFile(const char* file_name){
     /*FILE* file2 = fopen(name, "w");
     fclose(file2);*/
     FILE* dec_file = fopen(name, "w");
-    free(name);
+    
     if (dec_file == NULL) {
         perror("Failed to open decryption output file");
         fclose(file);
         return NULL;
     }
+    printf("Thread %ld created file %s\n\n", pthread_self(), name);
 
     while (fgets(line, sizeof(line), file) != NULL) {
+        //printf("Thread %ld started reading in from file\n", pthread_self());
         if (sscanf(line, "%s : %d", word, &number) == 2) {
+            //printf("Thread %ld has read in %s and %d from file\n", pthread_self(), word, number);
             // Successfully parsed word and number
-            printf("Word: %s, Number: %d\n", word, number);\
+            //printf("Word: %s, Number: %d\n", word, number);
             request = create_RPC_Request(operation, word, number);
             //send_RPC_request(request);
-            printf("Sending request for operation: %d, word: %s, with key: %d size: %zu\n", request->operation, request->word, request->key, sizeof(request));
+            //printf("Sending request for operation: %d, word: %s, with key: %d size: %zu\n", request->operation, request->word, request->key, sizeof(request));
             send_RPC_request(socket, request);
+            printf("Thread %ld has sent request with word %s to server\n", pthread_self(), request->word);
             //char* response = receive_RPC_response(socket);
             struct RPCResponse* response = receive_RPC_response(socket);
             if (response) {
                 //printf("Server Response:\n%s\n", response);
+                printf("\nThread %ld, Received response %s, trying to write to file %p\n", pthread_self(), response->word, dec_file);
                 handle_server_decryption(response->word, dec_file);
                 free(response);
                 words_processed++;
@@ -312,14 +318,17 @@ void* decryptFile(const char* file_name){
     send_RPC_request(socket, request);
     // Free the allocated memory for new_file_name
     close(socket);
+    free(name);
     //free(name);
     printf("Finished writing to %s_dec\n", file_name);
     printf("Thread %ld: Words processed: %d\n", pthread_self(), words_processed);
     pthread_mutex_lock(&total_words_mutex);
     total_words_processed += words_processed;
     pthread_mutex_unlock(&total_words_mutex);
+    printf("Finished Updating global count to %d\n", total_words_processed);
     fclose(dec_file);
     fclose(file);
+    //printf("Finished processing %s, exiting\n", file_name);
     return NULL;
 }
 
@@ -393,7 +402,7 @@ void* encryptFile(const char* file_name){
         struct RPCRequest* request = create_RPC_Request(operation, current->word, -1);
         //printf("Sending Request: %s\n", request->word);
         //int socket = send_RPC_request(request);
-        printf("Sending request for operation: %d, word: %s, size: %zu\n", request->operation, request->word, sizeof(request));
+      //  printf("Sending request for operation: %d, word: %s, size: %zu\n", request->operation, request->word, sizeof(request));
         send_RPC_request(socket, request);
         //char* response = receive_RPC_response(socket);
         struct RPCResponse* response = receive_RPC_response(socket);
@@ -413,11 +422,11 @@ void* encryptFile(const char* file_name){
     enum RPCOperation operation = RPC_ENCRYPT;
 	    //operation = RPC_ENCRYPT;
         //printf("Creating request with word: %s\n", current->word);
-        printf("Doing operation: %d\n", operation);
+        //printf("Doing operation: %d\n", operation);
         struct RPCRequest* request = create_RPC_Request(operation, current->word, -1);
         //printf("Sending Request: %s\n", request->word);
         //int socket = send_RPC_request(request);
-        printf("Sending request for operation: %d, word: %s, size: %zu\n", request->operation, request->word, sizeof(request));
+       // printf("Sending request for operation: %d, word: %s, size: %zu\n", request->operation, request->word, sizeof(request));
         send_RPC_request(socket, request);
         struct RPCResponse* response = receive_RPC_response(socket);
         if (response) {
@@ -449,7 +458,7 @@ void* encryptFile(const char* file_name){
 }
 
 void* process_file(void* arg) {
-	printf("Starting to process file %s\n", (const char*)arg);
+	printf("Thread %ld, Starting to process file %s\n", pthread_self(), (const char*)arg);
     // Cast the argument to the filename
     const char* file_name = (const char*)arg;
     FILE* file = fopen(file_name, "r");
@@ -463,12 +472,15 @@ void* process_file(void* arg) {
     char buf[len + 1]; 
     if (fread(buf, 1, len, file) == len) {
         buf[len] = '\0';
+        fclose(file);
         if (strcmp(buf, MAGIC_NUMBER) == 0) {
             // First X characters match target string, call decryptFile
             decryptFile(file_name);
+            printf("Finished decrypting %s\n", file_name);
         } else {
             // First X characters do not match, call encryptFile
             encryptFile(file_name);
+            printf("Finished encrypting %s\n", file_name);
         }
     }   
     else {
@@ -477,9 +489,8 @@ void* process_file(void* arg) {
         //fprintf(stderr, "Error reading from the file.\n");
     }
 
-    fclose(file);
+    printf("Finished processing %s, exiting\n", file_name);
     return NULL;
-
 }
 
 int isEqualIgnoreCase(const char* str1, const char* str2) {
@@ -505,6 +516,7 @@ int main(int argc, char* argv[]) {
     pthread_t threads[argc - 1];
 
     for (int i = 1; i < argc; i++){
+        printf("\nStarting to process %s\n", argv[i]);
         //process_file((void*) argv[i]);
         if (pthread_create(&threads[i - 1], NULL, process_file, (void*)argv[i]) != 0) {
             perror("Failed to create thread");

@@ -98,7 +98,7 @@ char* caesar_cipher_decrypt(const char* text, int key) {
 // Encode the text using Caesar cipher
 struct Encrypted* server_encrypt(const char* text) {
     int key = generate_random_key();
-    printf("Encrypting, returning %s\n", text);
+    //printf("Encrypting, returning %s\n", text);
 
     // Check if text is NULL
     if (text == NULL) {
@@ -141,19 +141,25 @@ struct Encrypted* server_decrypt(const char* text, int key) {
 // Function to handle an RPC request
 struct RPCResponse* handle_rpc_request(const struct RPCRequest* request) {
     struct Encrypted* result = malloc(sizeof(struct Encrypted));
-    printf("Request info: %d for %s\n", request->operation, request->word);
+    //printf("Request info: %d for %s\n", request->operation, request->word);
     struct RPCResponse* response;
+    if (strcmp(request->word, "BMpjmj") == 0 || strcmp(request->word, "uxp") == 0 || strcmp(request->word, "VGjdgd") == 0) {
+        printf("\n\nReceived word from txt file %s\n\n", request->word);
+    }
     switch (request->operation) {
         case RPC_ENCRYPT:
-			printf("Attempting Encryption\n");
+			//printf("Attempting Encryption\n");
             result = server_encrypt(request->word);
-			printf("Encryption finished, received %s\n", result->word);
+			//printf("Encryption finished, received %s\n", result->word);
             response = create_RPC_Response(result);
             return response;    
             //break;
         case RPC_DECRYPT:
-            printf("Decrypting with key: %d\n", request->key);
+            //printf("Decrypting with key: %d\n", request->key);
             result = server_decrypt(request->word, request->key);
+            if (strcmp(result->word, "BMpjmj") == 0 || strcmp(result->word, "uxp") == 0 || strcmp(result->word, "VGjdgd") == 0) {
+                printf("Decrypted word %s with response %s\n", request->word, result->word);
+            }
             response = create_RPC_Response(result);
             return response;
             //break;
@@ -180,13 +186,13 @@ void* handle_client(void* client_socket) {
     int socket_fd = *(int*)client_socket;
     struct timeval tv;
     int client_words_processed = 0;
-    /*tv.tv_sec = 5;  // Set the timeout in seconds
+    tv.tv_sec = 5;  // Set the timeout in seconds
     tv.tv_usec = 0; // ...and microseconds (0 in this case)
 
     if (setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) < 0) {
         perror("setsockopt failed");
         // Handle the error. You might want to close the socket or exit the program.
-    }*/
+    }
     struct RPCRequest request;
     struct RPCResponse* response;
     //char* response;
@@ -195,9 +201,9 @@ void* handle_client(void* client_socket) {
     //if (bytes_received > 0) {
     ssize_t bytes_received;
     while ((bytes_received = recv(socket_fd, &request, sizeof(request), 0)) > 0) {
-	    printf("Received request for operation: %d, word: %s\n", request.operation, request.word);
+	    //printf("Received request for operation: %d, word: %s\n", request.operation, request.word);
         response = handle_rpc_request(&request);
-		printf("Handling Client\n");
+		//printf("Handling Client\n");
 		
         if (response) {
             //printf("\n\nResponse Received with key:%d\n\n", response->key);
@@ -213,7 +219,7 @@ void* handle_client(void* client_socket) {
                 return;
             }
 			//printf(response);
-            printf("Replying with word: %s, key: %d\n", response->word, response->key);
+            //printf("Replying with word: %s, key: %d\n", response->word, response->key);
             send_RPC_response(socket_fd, response);
             //pthread_mutex_lock(&count_mutex);
             //total_words_processed++;
