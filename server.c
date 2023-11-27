@@ -9,13 +9,16 @@
 #include <errno.h>
 
 #define PORT 8080
-#define MAX_CLIENTS 10
-#define MAX_SHIFT 25
+#define MAX_CLIENTS 100
+#define MAX_SHIFT 9
+pthread_mutex_t count_mutex = PTHREAD_MUTEX_INITIALIZER;
+int total_words_processed = 0;
 
 // Define the RPC protocol operations
 enum RPCOperation {
     RPC_ENCRYPT,
     RPC_DECRYPT,
+    RPC_CLOSE,
 };
 
 // Structure for an RPC request
@@ -48,48 +51,12 @@ struct RPCResponse* create_RPC_Response(struct Encrypted* result){
 }
 
 void send_RPC_response(int socket, struct RPCResponse* response){
-    send(socket, response, sizeof(*response), 0);
-}
-
-/*struct Encrypted* server_encrypt(const char* text) {
-    int key = 1;
-    printf("Encrypting, returning %s\n", text);
-
-    // Check if text is NULL
-    if (text == NULL) {
-        // Handle the case where text is NULL (optional)
-        perror("Input text is NULL");
-        return NULL;
+    //send(socket, response, sizeof(*response), 0);
+    if (send(socket, response, sizeof(*response), 0) == -1) {
+        perror("send failed");
+        // Handle error
     }
-
-    // Attempt to duplicate the text
-    char* copy = strdup(text);
-
-    // Check if memory allocation was successful
-    if (copy == NULL) {
-        // Handle allocation failure
-        perror("Memory allocation failed");
-        exit(EXIT_FAILURE);
-    }
-
-    printf("Successful strdup, attempting return %s\n", copy);
-
-    struct Encrypted* ret = malloc(sizeof(struct Encrypted));
-    ret->word = copy;
-    ret->key = key;
-
-    return ret;
 }
-
-// Function to decrypt the text (server stub)
-struct Encrypted* server_decrypt(const char* text) {
-    // Implement the server-side decryption logic here
-    // This is just a placeholder
-    printf("Finished decrypting, returning %s\n", text);
-    struct Encrypted* ret = malloc(sizeof(struct Encrypted));
-    ret->word = text;
-    return ret;
-}*/
 
 // Function to generate a random number between 1 and 25
 int generate_random_key() {
@@ -130,7 +97,6 @@ char* caesar_cipher_decrypt(const char* text, int key) {
 
 // Encode the text using Caesar cipher
 struct Encrypted* server_encrypt(const char* text) {
-    srand(time(NULL)); // Seed the random number generator
     int key = generate_random_key();
     printf("Encrypting, returning %s\n", text);
 
@@ -191,6 +157,15 @@ struct RPCResponse* handle_rpc_request(const struct RPCRequest* request) {
             response = create_RPC_Response(result);
             return response;
             //break;
+        case RPC_CLOSE:
+            /*result->key = -1;
+            result->word = "NULL";
+            response = create_RPC_Response(result);
+            return response;*/
+            response = malloc(sizeof(struct RPCResponse));
+            strcpy(response->word, "NULL");
+            response->key = -1;
+            return response;
         default:
 			printf("Given empty RPCRequest\n");
             // Invalid operation
@@ -204,13 +179,14 @@ void* handle_client(void* client_socket) {
 	
     int socket_fd = *(int*)client_socket;
     struct timeval tv;
-    tv.tv_sec = 5;  // Set the timeout in seconds
+    int client_words_processed = 0;
+    /*tv.tv_sec = 5;  // Set the timeout in seconds
     tv.tv_usec = 0; // ...and microseconds (0 in this case)
 
     if (setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) < 0) {
         perror("setsockopt failed");
         // Handle the error. You might want to close the socket or exit the program.
-    }
+    }*/
     struct RPCRequest request;
     struct RPCResponse* response;
     //char* response;
@@ -224,9 +200,26 @@ void* handle_client(void* client_socket) {
 		printf("Handling Client\n");
 		
         if (response) {
+            //printf("\n\nResponse Received with key:%d\n\n", response->key);
+            if(response->key == -1){
+                printf("\n\nReceived request to close connection\n\n");
+                //close(socket_fd);
+                printf("Finished handling client\n");
+                pthread_mutex_lock(&count_mutex);
+                total_words_processed += client_words_processed;
+                printf("Total words processed: %d\n", total_words_processed);
+                pthread_mutex_unlock(&count_mutex);
+                close(socket_fd);
+                return;
+            }
 			//printf(response);
             printf("Replying with word: %s, key: %d\n", response->word, response->key);
             send_RPC_response(socket_fd, response);
+            //pthread_mutex_lock(&count_mutex);
+            //total_words_processed++;
+            //printf("Total words processed: %d\n", total_words_processed);
+            //pthread_mutex_unlock(&count_mutex);
+            client_words_processed++;
             //send(socket_fd, response, strlen(response), 0);
             //free(response);
         }
@@ -235,18 +228,25 @@ void* handle_client(void* client_socket) {
         }
     }
     if (bytes_received < 0) {
-    if (errno == EWOULDBLOCK || errno == EAGAIN) {
-        printf("recv timed out\n");
-        // Handle timeout-specific logic
-    } else {
-        perror("recv error");
-        // Handle other errors
-    }
-}   
+        if (errno == EWOULDBLOCK || errno == EAGAIN) {
+            printf("recv timed out\n");
+            // Handle timeout-specific logic
+        } else {
+            perror("recv error");
+            // Handle other errors
+        }
+    }   
 	printf("Finished handling client\n");
+    pthread_mutex_lock(&count_mutex);
+    total_words_processed += client_words_processed;
+    printf("Total words processed: %d\n", total_words_processed);
+    pthread_mutex_unlock(&count_mutex);
+    /*pthread_mutex_lock(&count_mutex);
+    printf("Total words processed: %d\n", total_words_processed);
+    pthread_mutex_unlock(&count_mutex);*/
     close(socket_fd);
     //free(client_socket);
-    return NULL;
+    return;
 }
 
 int main() {
@@ -262,6 +262,7 @@ int main() {
         perror("Error creating server socket");
         exit(EXIT_FAILURE);
     }
+    srand(time(NULL)); // Seed the random number generator
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(PORT);
@@ -291,15 +292,15 @@ int main() {
             exit(EXIT_FAILURE);
         }
 
-        printf("Connection accepted from %s:%d\n", inet_ntoa(new_addr.sin_addr), ntohs(new_addr.sin_port));
+        printf("Connection accepted from %s:%d, creating a thread\n", inet_ntoa(new_addr.sin_addr), ntohs(new_addr.sin_port));
 
+	    //handle_client(&new_socket);
         // Create a thread to handle the client
-        /*if (pthread_create(&tid[clients_count], NULL, handle_client, &new_socket) != 0) {
+        pthread_t thread;
+        if (pthread_create(&thread, NULL, handle_client, (void*)&new_socket) != 0) {
             perror("Error creating thread");
             exit(EXIT_FAILURE);
-        }*/
-	
-	    handle_client(&new_socket);
+        }
 
         clients_count++;
 

@@ -6,17 +6,21 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <pthread.h>
+#include <semaphore.h>
 
 #define SERVER_IP "10.100.240.204"
 #define SERVER_PORT 8080
 #define MAGIC_NUMBER "aa231fd13)@!!@!%asdj3jfddjlmbt"
 //const char* targetString = "aa231fd13)@!!@!%asdj3jfddjlmbt";
+pthread_mutex_t total_words_mutex = PTHREAD_MUTEX_INITIALIZER;
+int total_words_processed = 0;
 
 
 // Define the RPC protocol operations
 enum RPCOperation {
     RPC_ENCRYPT,
     RPC_DECRYPT,
+    RPC_CLOSE,
 };
 
 // Structure for an RPC request
@@ -41,12 +45,13 @@ typedef struct Node {
 struct RPCRequest* create_RPC_Request(enum RPCOperation operation, const char* word, int key){
     struct RPCRequest* request = malloc(sizeof(struct RPCRequest));
     request->operation = operation;
-    //request->word = strcpy(requword);
-    //strcpy(request->word, word);
-    //printf("Recieved: %s, Setting word to: %s\n", text, strdup(text));
-    //printf("%s\n", request.word);
-    strncpy(request->word, word, sizeof(request->word) - 1);
-    request->word[sizeof(request->word) - 1] = '\0';
+    if(word == NULL){
+        //request->word = NULL;
+    }
+    else{
+        strncpy(request->word, word, sizeof(request->word) - 1);
+        request->word[sizeof(request->word) - 1] = '\0';
+    }
     if(key > 0){
         request->key = key;
     }
@@ -97,7 +102,11 @@ int connect_to_server(){
 }
 
 void send_RPC_request(int socket, struct RPCRequest* request){
-    send(socket, request, sizeof(*request), 0);
+    //send(socket, request, sizeof(*request), 0);
+    if (send(socket, request, sizeof(*request), 0) == -1) {
+        perror("send failed");
+        // Handle error
+    }
 }
 
 // Function to receive an RPC response (client stub) hey
@@ -107,7 +116,7 @@ struct RPCResponse* receive_RPC_response(int socket_fd) {
     ssize_t bytes_received = recv(socket_fd, response, sizeof(struct RPCResponse), 0);
     //while (recv(socket_fd, response, sizeof(struct RPCResponse), 0) > 0) {
     //ssize_t bytes_received = recv(socket_fd, buffer, sizeof(buffer), 0);
-        if (bytes_received > 0) {
+    if (bytes_received > 0) {
         if(response){
         //buffer[bytes_received] = '\0';
         //return strdup(buffer);
@@ -186,6 +195,7 @@ void* decryptFile(char* file_name){
     char line[256]; // Assuming a maximum line length of 255 characters
     char word[256];
     int number;
+    int words_processed = 0;
 
     // Ignore the first line
     if (fgets(line, sizeof(line), file) == NULL) {
@@ -224,6 +234,7 @@ void* decryptFile(char* file_name){
                 //printf("Server Response:\n%s\n", response);
                 handle_server_decryption(response->word, file_name);
                 free(response);
+                words_processed++;
             }
         } else {
             // Parsing failed
@@ -231,9 +242,17 @@ void* decryptFile(char* file_name){
         }
     }
 
+    operation = RPC_CLOSE;
+    request = create_RPC_Request(operation, "close", -1);
+    send_RPC_request(socket, request);
     // Free the allocated memory for new_file_name
+    close(socket);
     free(name);
-
+    printf("Finished writing to %s_dec\n", file_name);
+    printf("Thread %ld: Words processed: %d\n", pthread_self(), words_processed);
+    pthread_mutex_lock(&total_words_mutex);
+    total_words_processed += words_processed;
+    pthread_mutex_unlock(&total_words_mutex);
 }
 
 void* encryptFile(char* file_name){
@@ -241,6 +260,7 @@ void* encryptFile(char* file_name){
     char command[256];
     FILE *fp;
     char buffer[1024]; // Adjust buffer size as needed
+    int words_processed = 0;
 
     //printf("Starting command\n");
     snprintf(command, sizeof(command), "./word-count %s", file_name);
@@ -256,6 +276,7 @@ void* encryptFile(char* file_name){
 
     while (fgets(buffer, sizeof(buffer)-1, fp) != NULL) {
         buffer[strcspn(buffer, "\n")] = 0; // Remove newline character
+        //printf("Read-in word: %s\n", buffer);
         appendNode(&head, buffer);
     }
 
@@ -306,6 +327,7 @@ void* encryptFile(char* file_name){
             //printf("Server Response:\n%s\n", response);
             handle_server_encryption(response->word, response->key, file_name);
             free(response);
+            words_processed++;
         }
         /*else {
             fprintf(stderr, "\n");
@@ -328,13 +350,29 @@ void* encryptFile(char* file_name){
             //printf("Server Response:\n%s\n", response);
             handle_server_encryption(response->word, response->key, file_name);
             free(response);
+            words_processed++;
         }
 
     freeList(head);
     printf("Finished writing to %s_enc\n", file_name);
+
+    operation = RPC_CLOSE;
+    request = create_RPC_Request(operation, "close", -1);
+    send_RPC_request(socket, request);
+    struct RPCResponse* close_response = receive_RPC_response(socket);
+    if (close_response) {
+        free(close_response);
+    }
+    close(socket);
+
+    //close(socket);
+    printf("Thread %ld: Words processed: %d\n", pthread_self(), words_processed);
+    pthread_mutex_lock(&total_words_mutex);
+    total_words_processed += words_processed;
+    pthread_mutex_unlock(&total_words_mutex);
     return 0;
 }
-
+ 
 void* process_file(void* arg) {
 	printf("Starting to process file %s\n", arg);
     // Cast the argument to the filename
@@ -389,45 +427,25 @@ int main(int argc, char* argv[]) {
         printf("argv[%d]: %s\n", i, argv[i]);
     }
 
-    // Iterate through the input files
-    /*for (int i = 1; i < argc; i += 2) {
-        // ...
+    pthread_t threads[argc - 1];
 
-        const char* file_name = argv[i+1];
-		const char* operation = argv[i];
-		const char* key_file;
-		
-		pthread_t thread;*/
-		
-		/*if(isEqualIgnoreCase(operation, "decrypt")){
-			key_file = argv[i+2];
-			i += 1;
-			if (pthread_create(&thread, NULL, process_file, (void*)file_name) != 0) {
-				perror("Error creating thread");
-				continue; // Continue to the next file
-			}
-		}
-		else{
-			printf("Creating thread to encrypt file %s\n", file_name);
-			if (pthread_create(&thread, NULL, process_file, (void*)argv[1]) != 0) {
-				perror("Error creating thread");
-				continue; // Continue to the next file
-			}
-			else{
-				printf("Thread created successfully for file: %s and operation: %s \n", file_name, operation);
-			}*/
-        process_file((void*) argv[1]);
+    for (int i = 1; i < argc; i++){
+        //process_file((void*) argv[i]);
+        if (pthread_create(&threads[i - 1], NULL, process_file, (void*)argv[i]) != 0) {
+            perror("Failed to create thread");
+            return 1;
+        }
+    }
 
-        // Create a thread for each file
-        //pthread_t thread;
-        
+    for (int i = 0; i < argc - 1; i++) {
+        if (pthread_join(threads[i], NULL) != 0) {
+            perror("Failed to join thread");
+            return 1;
+        }
+    }
 
-        // You can optionally join the threads here if you want to wait for them to finish before proceeding.
-		//}
-	//}
+    printf("Total words processed by all threads: %d\n", total_words_processed);
 
-    // Cleanup and exit
-    //close(client_socket);
     return 0;
 }
 
