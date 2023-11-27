@@ -305,10 +305,10 @@ int main() {
         clients_count++;
 
         // If there are too many clients, close the new socket
-        if (clients_count >= MAX_CLIENTS) {
+        /*if (clients_count >= MAX_CLIENTS) {
             printf("Maximum number of clients reached. Closing connection...\n");
             close(new_socket);
-        }
+        }*/
     }
 
     // Close the server socket (never reached in this loop)
