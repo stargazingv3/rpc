@@ -175,6 +175,7 @@ struct RPCResponse* receive_RPC_response(int socket_fd) {
         }
     }
     perror("Error receiving response from server");
+    free(response);
     return NULL;
 }
 

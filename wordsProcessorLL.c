@@ -145,6 +145,20 @@ int printWordsLinkedList(struct WordNode* head) {
     return totalWords;
 }
 
+// Function to print the linked list in reverse order
+void printWordsLinkedListReverse(struct WordNode* head) {
+    if (head == NULL) {
+        return;  // Base case: reached the end of the list
+    }
+
+    // Recursively call the function for the next node
+    printWordsLinkedListReverse(head->next);
+
+    // Print the word when returning from the recursive call
+    printf("%s\n", head->word);
+}
+
+
 // Function to calculate the length of a linked list
 int getLinkedListLength(struct WordNode* head) {
     int length = 0;  // Initialize the length to 0

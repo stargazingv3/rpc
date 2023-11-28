@@ -45,7 +45,7 @@ int main(int argc, char* argv[]) {
             //int wordsInFile = printWordsLinkedList(wordList);
             //struct Words* temp = extractList(wordList);
             //printWordssLinkedList(temp);
-            printWordsLinkedList(wordList);
+            printWordsLinkedListReverse(wordList);
             int wordsInFile = 10;
 			int uniqueWords = getLinkedListLength(wordList);
 			

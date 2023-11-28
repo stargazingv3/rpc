@@ -20,4 +20,5 @@ void freeWordsLinkedList(struct WordNode* head);
 int getLinkedListLength(struct WordNode* head);
 struct Words* extractList(struct WordNode* node);
 int printWordssLinkedList(struct Words* head);
+void printWordsLinkedListReverse(struct WordNode* head);
 #endif
