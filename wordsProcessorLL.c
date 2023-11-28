@@ -5,7 +5,6 @@
 #include "wordsProcessorLL.h"
 
 int v = 0;
-struct Words* headWord; //= createWordsNode("NULL"); // = createWordsNode(node->word);
 
 // Function to create a new node in the linked list
 struct WordNode* createWordNode(char* word) {
@@ -20,49 +19,31 @@ struct WordNode* createWordNode(char* word) {
     return newNode;
 }
 
-
-struct Words* createWordsNode(char* word){
-	struct Words* newNode = (struct Words*)malloc(sizeof(struct Words));
-    newNode->word = strdup(word);
-	newNode->next = NULL;
-    return newNode;
-}
-
 // Function to insert a node into the linked list in alphabetical order
 void insertNode(struct WordNode** head, char* word) {
     struct WordNode* current = *head;
     struct WordNode* prev = NULL;
 
-    struct Words* currentWords = headWord;
-    struct Words* prevWords = NULL;
-
-
     // Find the appropriate position in the list
-    while (current != NULL && strcmp(word, current->word) > 0) {
+   /*/ while (current != NULL && strcmp(word, current->word) > 0) {
         prev = current;
         current = current->next;
-    }
+    }*/
 
     // If the word is already in the list, increment the count
     if (current != NULL && strcmp(word, current->word) == 0) {
         current->count++;
     } else {
         struct WordNode* newNode = createWordNode(word);
-        struct Words* wordsNode = createWordsNode(word);
 
         if (prev == NULL) {
             // Insert at the beginning of the list
             newNode->next = *head;
             *head = newNode;
-            wordsNode->next = headWord;
-            headWord = wordsNode;
         } else {
             // Insert in the middle or end of the list
             newNode->next = current;
             prev->next = newNode;
-            //currentWords->next = wordsNode;
-            wordsNode->next = currentWords;
-            prevWords->next = wordsNode;
         }
     }
 }
@@ -186,6 +167,13 @@ void freeWordsLinkedList(struct WordNode* head) {
         free(temp->word);
         free(temp);
     }
+}
+
+struct Words* createWordsNode(char* word){
+	struct Words* newNode = (struct Words*)malloc(sizeof(struct Words));
+    newNode->word = strdup(word);
+	newNode->next = NULL;
+    return newNode;
 }
 
 struct Words* extractList(struct WordNode* node){
