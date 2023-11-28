@@ -9,6 +9,7 @@
 #include <semaphore.h>
 
 #define SERVER_IP "10.100.240.204"
+//#define SERVER_IP "127.0.0.1"
 #define SERVER_PORT 8080
 #define MAGIC_NUMBER "aa231fd13)@!!@!%asdj3jfddjlmbt"
 //const char* targetString = "aa231fd13)@!!@!%asdj3jfddjlmbt";
@@ -78,8 +79,8 @@ void freeList(Node* head) {
         free(tmp);
     }
 }
-
-struct RPCRequest* create_RPC_Request(enum RPCOperation operation, const char* word, int key){
+ 
+void create_RPC_Request(enum RPCOperation operation, const char* word, int key, int socket){
     struct RPCRequest* request = malloc(sizeof(struct RPCRequest));
     request->operation = operation;
     if(word == NULL){
@@ -96,7 +97,12 @@ struct RPCRequest* create_RPC_Request(enum RPCOperation operation, const char* w
     if(key > 0){
         request->key = key;
     }
-    return request;
+    if (send(socket, request, sizeof(*request), 0) == -1) {
+        perror("send failed");
+        // Handle error
+    }
+    printf("Thread %ld has sent request with word %s to server\n", pthread_self(), request->word);
+    free(request);
 }
 
 void free_RPC_Request(struct RPCRequest* request) {
@@ -174,30 +180,7 @@ struct RPCResponse* receive_RPC_response(int socket_fd) {
 }
 
 void* handle_server_decryption(char* word, FILE* file){
-    /*size_t file_size = strlen(file_name) + strlen("_dec") + 1;
-    char* name = (char*)malloc(file_size);
-    if(name == NULL){
-        fprintf(stderr, "Memory allocation error\n");
-        return;
-    }
-
-    snprintf(name, file_size, "%s_dec", file_name);
-    FILE* file = fopen(name, "a");
-
-    size_t entry_size = strlen(word); 
-
-    char entry[256];
-    snprintf(entry, sizeof(entry), "%s\n", word);
-
-    // Write the formatted data to the file
-    fprintf(file, "%s", entry);
-    printf("Writing %s to file\n", entry);
-
-    // Close the file
-    fclose(file);
-
-    // Free the allocated memory for new_file_name
-    free(name);*/
+    
     if (file == NULL) {
         perror("Invalid file pointer");
         return NULL;
@@ -208,30 +191,7 @@ void* handle_server_decryption(char* word, FILE* file){
 }
 
 void* handle_server_encryption(char* word, int key, FILE* file){
-    /*size_t file_size = strlen(file_name) + strlen("_enc") + 1;
-    char* name = (char*)malloc(file_size);
-    if(name == NULL){
-        fprintf(stderr, "Memory allocation error\n");
-        return;
-    }
-
-    snprintf(name, file_size, "%s_enc", file_name);
-    FILE* file = fopen(name, "a");
-
-    size_t entry_size = strlen(word); 
-
-    char entry[256];
-    snprintf(entry, sizeof(entry), "%s : %d\n", word, key);
-
-    // Write the formatted data to the file
-    fprintf(file, "%s", entry);
-    printf("Writing %s to file\n", entry);
-
-    // Close the file
-    fclose(file);
-
-    // Free the allocated memory for new_file_name
-    free(name);*/
+   
     if (file == NULL) {
         fprintf(stderr, "Invalid file pointer\n");
         return NULL;
@@ -262,7 +222,7 @@ void* decryptFile(const char* file_name){
 
     // Read and process subsequent lines
     enum RPCOperation operation = RPC_DECRYPT;
-    struct RPCRequest* request;
+    //struct RPCRequest* request;
 
     int socket = connect_to_server();
     printf("\nThread %ld connected to server\n", pthread_self());
@@ -293,11 +253,14 @@ void* decryptFile(const char* file_name){
             //printf("Thread %ld has read in %s and %d from file\n", pthread_self(), word, number);
             // Successfully parsed word and number
             //printf("Word: %s, Number: %d\n", word, number);
-            request = create_RPC_Request(operation, word, number);
+            //request = create_RPC_Request(operation, word, number);
+            //struct RPCRequest* request = create_RPC_Request(operation, word, number, socket);
+            create_RPC_Request(operation, word, number, socket);
             //send_RPC_request(request);
             //printf("Sending request for operation: %d, word: %s, with key: %d size: %zu\n", request->operation, request->word, request->key, sizeof(request));
-            send_RPC_request(socket, request);
-            printf("Thread %ld has sent request with word %s to server\n", pthread_self(), request->word);
+            //send_RPC_request(socket, request);
+
+            //free_RPC_Request(request);
             //char* response = receive_RPC_response(socket);
             struct RPCResponse* response = receive_RPC_response(socket);
             if (response) {
@@ -314,8 +277,11 @@ void* decryptFile(const char* file_name){
     }
 
     operation = RPC_CLOSE;
-    request = create_RPC_Request(operation, "close", -1);
-    send_RPC_request(socket, request);
+    //request = create_RPC_Request(operation, "close", -1);
+    //struct RPCRequest* request = create_RPC_Request(operation, word, number, socket);
+    //send_RPC_request(socket, request);
+    create_RPC_Request(operation, word, number, socket);
+    //free_RPC_Request(request);
     // Free the allocated memory for new_file_name
     close(socket);
     free(name);
@@ -399,11 +365,12 @@ void* encryptFile(const char* file_name){
 	    //operation = RPC_ENCRYPT;
         //printf("Creating request with word: %s\n", current->word);
         printf("Doing operation: %d\n", operation);
-        struct RPCRequest* request = create_RPC_Request(operation, current->word, -1);
+        create_RPC_Request(operation, current->word, -1, socket);
+        //struct RPCRequest* request = create_RPC_Request(operation, current->word, -1);
         //printf("Sending Request: %s\n", request->word);
         //int socket = send_RPC_request(request);
       //  printf("Sending request for operation: %d, word: %s, size: %zu\n", request->operation, request->word, sizeof(request));
-        send_RPC_request(socket, request);
+        //send_RPC_request(socket, request);
         //char* response = receive_RPC_response(socket);
         struct RPCResponse* response = receive_RPC_response(socket);
         if (response) {
@@ -423,25 +390,27 @@ void* encryptFile(const char* file_name){
 	    //operation = RPC_ENCRYPT;
         //printf("Creating request with word: %s\n", current->word);
         //printf("Doing operation: %d\n", operation);
-        struct RPCRequest* request = create_RPC_Request(operation, current->word, -1);
+        //struct RPCRequest* request = create_RPC_Request(operation, current->word, -1);
         //printf("Sending Request: %s\n", request->word);
         //int socket = send_RPC_request(request);
        // printf("Sending request for operation: %d, word: %s, size: %zu\n", request->operation, request->word, sizeof(request));
-        send_RPC_request(socket, request);
-        struct RPCResponse* response = receive_RPC_response(socket);
-        if (response) {
-            //printf("Server Response:\n%s\n", response);
-            handle_server_encryption(response->word, response->key, enc_file);
-            free(response);
-            words_processed++;
-        }
+        //send_RPC_request(socket, request);
+    create_RPC_Request(operation, current->word, -1, socket);
+    struct RPCResponse* response = receive_RPC_response(socket);
+    if (response) {
+        //printf("Server Response:\n%s\n", response);
+        handle_server_encryption(response->word, response->key, enc_file);
+        free(response);
+        words_processed++;
+    }
 
     freeList(head);
     printf("Finished writing to %s_enc\n", file_name);
 
     operation = RPC_CLOSE;
-    request = create_RPC_Request(operation, "close", -1);
-    send_RPC_request(socket, request);
+    //request = create_RPC_Request(operation, "close", -1);
+    //send_RPC_request(socket, request);
+    create_RPC_Request(operation, "close", -1, socket);
     struct RPCResponse* close_response = receive_RPC_response(socket);
     if (close_response) {
         free(close_response);

@@ -43,6 +43,7 @@ int main(int argc, char* argv[]) {
             fclose(file);
 			//printf("\n\nThe file %s has: \n",argv[i]);
             //int wordsInFile = printWordsLinkedList(wordList);
+            printf("%s\n", wordList->word);
             struct Words* temp = extractList(wordList);
             printWordssLinkedList(temp);
             int wordsInFile = 10;

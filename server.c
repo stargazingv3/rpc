@@ -7,6 +7,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <errno.h>
+#include <ctype.h>
 
 #define PORT 8080
 #define MAX_CLIENTS 100
@@ -216,7 +217,7 @@ void* handle_client(void* client_socket) {
                 printf("Total words processed: %d\n", total_words_processed);
                 pthread_mutex_unlock(&count_mutex);
                 close(socket_fd);
-                return;
+                return NULL;
             }
 			//printf(response);
             //printf("Replying with word: %s, key: %d\n", response->word, response->key);
@@ -252,7 +253,7 @@ void* handle_client(void* client_socket) {
     pthread_mutex_unlock(&count_mutex);*/
     close(socket_fd);
     //free(client_socket);
-    return;
+    return NULL;
 }
 
 int main() {
