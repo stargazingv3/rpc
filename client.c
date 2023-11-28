@@ -478,13 +478,14 @@ int isEqualIgnoreCase(const char* str1, const char* str2) {
 int main(int argc, char* argv[]) {
     // ...
 	printf("Arguments: %d\n", argc);
-	for (int i = 0; i < argc; i++) {
+    int i;
+	for (i = 0; i < argc; i++) {
         printf("argv[%d]: %s\n", i, argv[i]);
     }
 
     pthread_t threads[argc - 1];
 
-    for (int i = 1; i < argc; i++){
+    for (i = 1; i < argc; i++){
         printf("\nStarting to process %s\n", argv[i]);
         //process_file((void*) argv[i]);
         if (pthread_create(&threads[i - 1], NULL, process_file, (void*)argv[i]) != 0) {
@@ -493,7 +494,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    for (int i = 0; i < argc - 1; i++) {
+    for ( i = 0; i < argc - 1; i++) {
         if (pthread_join(threads[i], NULL) != 0) {
             perror("Failed to join thread");
             return 1;
