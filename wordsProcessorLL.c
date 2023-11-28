@@ -25,10 +25,10 @@ void insertNode(struct WordNode** head, char* word) {
     struct WordNode* prev = NULL;
 
     // Find the appropriate position in the list
-    while (current != NULL && strcmp(word, current->word) > 0) {
+   /*/ while (current != NULL && strcmp(word, current->word) > 0) {
         prev = current;
         current = current->next;
-    }
+    }*/
 
     // If the word is already in the list, increment the count
     if (current != NULL && strcmp(word, current->word) == 0) {
@@ -144,6 +144,20 @@ int printWordsLinkedList(struct WordNode* head) {
 
     return totalWords;
 }
+
+// Function to print the linked list in reverse order
+void printWordsLinkedListReverse(struct WordNode* head) {
+    if (head == NULL) {
+        return;  // Base case: reached the end of the list
+    }
+
+    // Recursively call the function for the next node
+    printWordsLinkedListReverse(head->next);
+
+    // Print the word when returning from the recursive call
+    printf("%s\n", head->word);
+}
+
 
 // Function to calculate the length of a linked list
 int getLinkedListLength(struct WordNode* head) {
