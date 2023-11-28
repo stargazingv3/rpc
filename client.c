@@ -8,14 +8,13 @@
 #include <pthread.h>
 #include <semaphore.h>
 
-#define SERVER_IP "10.100.240.204"
-//#define SERVER_IP "127.0.0.1"
+//#define SERVER_IP "10.100.240.204"
+#define SERVER_IP "127.0.0.1"
 #define SERVER_PORT 8080
 #define MAGIC_NUMBER "aa231fd13)@!!@!%asdj3jfddjlmbt"
 //const char* targetString = "aa231fd13)@!!@!%asdj3jfddjlmbt";
 pthread_mutex_t total_words_mutex = PTHREAD_MUTEX_INITIALIZER;
 int total_words_processed = 0;
-
 
 // Define the RPC protocol operations
 enum RPCOperation {
