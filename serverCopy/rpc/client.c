@@ -156,7 +156,7 @@ void* handle_server_decryption(char* word, FILE* file){
     return NULL;
 }
 
-void* handle_server_encryption(char* word, int key, FILE* file){
+/*void* handle_server_encryption(char* word, int key, FILE* file){
    
     if (file == NULL) {
         fprintf(stderr, "Invalid file pointer\n");
@@ -165,7 +165,31 @@ void* handle_server_encryption(char* word, int key, FILE* file){
 
     fprintf(file, "{%s : %d},", word, key); // Write directly to the passed file
     return NULL;
+}*/
+
+void* handle_server_encryption(char* word, int key, FILE* file) {
+    if (file == NULL) {
+        fprintf(stderr, "Invalid file pointer\n");
+        return NULL;
+    }
+
+    // Encode newline characters before writing to the file
+    size_t word_length = strlen(word);
+    fprintf(file, "{");
+    for (size_t i = 0; i < word_length; i++) {
+        if (word[i] == '\n') {
+            // Encode newline character as, for example, "\n"
+            printf("\n\nReplacing New Line from word %s\n\n", word);
+            fprintf(file, "\\n");
+        } else {
+            fputc(word[i], file);
+        }
+    }
+
+    fprintf(file, " : %d},", key); // Write the key after the encoded word
+    return NULL;
 }
+
 
 
 
@@ -181,7 +205,7 @@ void freeLineData(struct LineData* data) {
     free(data);
 }
 
-struct LineData* parseLine(const char* line) {
+/* LineData* parseLine(const char* line) {
     struct LineData* data = (struct LineData*)malloc(sizeof(struct LineData));
     if (data == NULL) {
         fprintf(stderr, "Memory allocation error\n");
@@ -224,6 +248,69 @@ struct LineData* parseLine(const char* line) {
     }
 
     return data;
+}*/
+
+struct LineData* parseLine(const char* line) {
+    struct LineData* data = (struct LineData*)malloc(sizeof(struct LineData));
+    if (data == NULL) {
+        fprintf(stderr, "Memory allocation error\n");
+        return NULL;
+    }
+
+    // Assuming the content can be any length
+    data->content = strdup(line);
+    if (data->content == NULL) {
+        fprintf(stderr, "Memory allocation error\n");
+        free(data);
+        return NULL;
+    }
+
+    // Exclude the first and last characters from content
+    size_t lineLength = strlen(line);
+    if (lineLength >= 2) {
+        // Check for "\\n" sequence
+        int containsNewLine = (strstr(line, "\\n") != NULL);
+
+        if (containsNewLine) {
+            printf("New Line: ");
+        } else {
+            printf("Normal: ");
+        }
+
+        // Extract content excluding the first and last characters
+        data->content = (char*)malloc(lineLength - 1);
+        if (data->content == NULL) {
+            fprintf(stderr, "Memory allocation error\n");
+            freeLineData(data);
+            return NULL;
+        }
+
+        strncpy(data->content, line + 1, lineLength - 2);
+        data->content[lineLength - 2] = '\0';  // Null-terminate
+    } else {
+        fprintf(stderr, "Invalid format1: %s\n", line);
+        freeLineData(data);
+        return NULL;
+    }
+
+    // Parse the key from the content
+    char* keyStr = strstr(data->content, " : ");
+    if (keyStr == NULL) {
+        fprintf(stderr, "Invalid format2: %s\n", line);
+        freeLineData(data);
+        return NULL;
+    }
+    else{printf("%s\n", line);}
+
+    *keyStr = '\0';  // Null-terminate the content
+    keyStr += 3;     // Move past " : "
+    if (sscanf(keyStr, "%d", &(data->key)) != 1) {
+        fprintf(stderr, "Error parsing key: %s\n", line);
+        freeLineData(data);
+        return NULL;
+    }
+
+    return data;
 }
 
 
@@ -246,7 +333,7 @@ struct LineData* parseLine(const char* line) {
     return data;
 }*/
 
-
+/*
 void* decryptFile(const char* file_name) {
     char line[256];
     int words_processed = 0;
@@ -291,6 +378,12 @@ while (fgets(line, sizeof(line), file) != NULL) {
     while (token != NULL) {
         // Process each entry using parseLine
         //printf("Sending token: %s\n", token);
+        printf("Sending Token: ");
+        for (int i = 0; token[i] != '\0'; ++i) {
+            printf("%02X ", token[i]);
+        }
+        printf("Text ver: %s\n", token);
+        printf("\n");
         struct LineData* data = parseLine(token);
         if (data != NULL) {
             create_RPC_Request(operation, data->content, data->key, socket);
@@ -336,6 +429,114 @@ while (fgets(line, sizeof(line), file) != NULL) {
             return NULL;
         }
     }*/
+
+    /*operation = RPC_CLOSE;
+    create_RPC_Request(operation, line, 0, socket);  // Adjust accordingly if the line needs to be processed
+    close(socket);
+    free(name);
+    printf("Words processed in %s: %d\n", file_name, words_processed);
+    pthread_mutex_lock(&total_words_mutex);
+    total_words_processed += words_processed;
+    pthread_mutex_unlock(&total_words_mutex);
+    fprintf(dec_file, "\n");
+    fclose(dec_file);
+    fclose(file);
+    return NULL;
+}*/
+
+void* decryptFile(const char* file_name) {
+    char line[256];
+    int words_processed = 0;
+
+    FILE* file = fopen(file_name, "rb");
+    if (file == NULL) {
+        perror("Failed to open input file");
+        return NULL;
+    }
+
+    // Ignore the first line
+    if (fgets(line, sizeof(line), file) == NULL) {
+        fclose(file);
+        return NULL;
+    }
+
+    // Read and process subsequent lines
+    enum RPCOperation operation = RPC_DECRYPT;
+    int socket = connect_to_server();
+    size_t file_size = strlen(file_name) + strlen("_dec") + 1;
+    char* name = (char*)malloc(file_size);
+    if (name == NULL) {
+        fprintf(stderr, "Memory allocation error\n");
+        fclose(file);
+        return NULL;
+    }
+
+    snprintf(name, file_size, "%s_dec", file_name);
+    FILE* dec_file = fopen(name, "w");
+
+    if (dec_file == NULL) {
+        perror("Failed to open decryption output file");
+        free(name);
+        fclose(file);
+        return NULL;
+    }
+
+    int c;
+    while ((c = fgetc(file)) != EOF) {
+        if (c == '{') {
+            // Read characters until '}' is encountered, including the curly braces
+            size_t buffer_size = 256;
+            char* buffer = (char*)malloc(buffer_size);
+            size_t i = 0;
+
+            buffer[i++] = '{';  // Include the opening curly brace in the buffer
+
+            while ((c = fgetc(file)) != EOF && c != '}') {
+                if (i == buffer_size - 1) {
+                    // Resize buffer if needed
+                    buffer_size *= 2;
+                    buffer = (char*)realloc(buffer, buffer_size);
+                }
+                buffer[i++] = c;
+            }
+
+            if (c == '}') {
+                buffer[i++] = '}';  // Include the closing curly brace in the buffer
+            }
+
+            // Null-terminate the buffer
+            buffer[i] = '\0';
+
+            // Process the entry
+            printf("Sending Token: ");
+            for (size_t j = 0; j < i; ++j) {
+                printf("%02X ", (unsigned char)buffer[j]);
+            }
+            printf("\n");
+
+            struct LineData* data = parseLine(buffer);
+            if (data != NULL) {
+                create_RPC_Request(operation, data->content, data->key, socket);
+                struct RPCResponse* response = receive_RPC_response(socket);
+                if (response) {
+                    handle_server_decryption(response->word, dec_file);
+                    free(response);
+                    words_processed++;
+                }
+                freeLineData(data);
+            } else {
+                // Parsing failed for an entry
+                printf("Error parsing entry: %s\n", buffer);
+                fclose(dec_file);
+                fclose(file);
+                free(name);
+                free(buffer);
+                return NULL;
+            }
+
+            free(buffer);
+        }
+    }
 
     operation = RPC_CLOSE;
     create_RPC_Request(operation, line, 0, socket);  // Adjust accordingly if the line needs to be processed
@@ -516,6 +717,7 @@ void* process_file(void* arg) {
     FILE* file = fopen(file_name, "r");
     if (file == NULL) {
         perror("Failed to open file");
+        printf("Failed for %s\n", file_name);
         return NULL;
     }
 
@@ -553,7 +755,7 @@ int isEqualIgnoreCase(const char* str1, const char* str2) {
 }
 
 int main(int argc, char* argv[]) {
-    if (argc < 4) {
+    if (argc < 5) {
         fprintf(stderr, "Usage: %s IP PORT file1 file2 ...\n", argv[0]);
         return EXIT_FAILURE;
     }
