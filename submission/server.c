@@ -210,6 +210,48 @@ struct Encrypted* server_encrypt(const char* text) {
     return ret;
 }
 
+char* undo_server_encryption(const char* encoded_text) {
+    if (encoded_text == NULL) {
+        perror("Input text is NULL");
+        return NULL;
+    }
+
+    // Calculate the length of the original text
+    size_t encoded_length = strlen(encoded_text);
+    size_t original_length = 0;
+
+    // Allocate memory for the original text
+    char* original_text = (char*)malloc(encoded_length + 1);  // +1 for the null terminator
+
+    if (original_text == NULL) {
+        perror("Memory allocation failed");
+        return NULL;
+    }
+
+    // Decode the text
+    size_t i, j;
+    for (i = 0, j = 0; i < encoded_length; i++) {
+        if (encoded_text[i] == '\\' && i + 1 < encoded_length) {
+            // Check for the encoded newline character
+            if (encoded_text[i + 1] == 'n') {
+                original_text[j++] = '\n';
+                i++;  // Skip the 'n' character
+            } else {
+                // Copy other escaped characters as-is
+                original_text[j++] = encoded_text[i];
+            }
+        } else {
+            // Copy non-escaped characters as-is
+            original_text[j++] = encoded_text[i];
+        }
+    }
+
+    original_text[j] = '\0';  // Null-terminate the string
+
+    return original_text;
+}
+
+
 // Decrypts a given client word
 // First decrypts using RC4 then caesar to undo order of encryption
 struct Encrypted* server_decrypt(const char* text, int key) {
@@ -217,8 +259,8 @@ struct Encrypted* server_decrypt(const char* text, int key) {
         perror("Input text is NULL");
         return NULL;
     }
-
-    char* rc4_decrypted = rc4_decrypt(text, "RC4_KEY");
+    char* text2 = undo_server_encryption(text);
+    char* rc4_decrypted = rc4_decrypt(text2, "RC4_KEY");
     char* decrypted_text = caesar_cipher_decrypt(rc4_decrypted, key);
 
     //Stores the result in a struct to return with.
