@@ -9,10 +9,8 @@
 #include <errno.h>
 #include <ctype.h>
 
-//#define PORT 8080
-#define MAX_SHIFT 9
-#define MAX_CLIENTS 1000
-//#define RC4Key 0DDCD6C5BEA76DDB9BD70EB3EFC053B61000ABE01EC4BE2FD76DA841D549E7E225BDA7E46414BF00EBCDB3DA8D07909E073B7E26FF3D55D6AAFD177F47FE616CBB0850201C102007DDD3E16BDA7109E2AD8708ACC45D836F5B9AEEA299500E54585F74756F947C4C685EB742CFC0247C482C290C8AAC7BE5466A87DFBA953412F4A887633D04B0A56267E731280CAE7038D77CC283F8A7C9622EA91CC4DD2EB885B61CC2BACC671C334F4D5B5BFBCB93D248565540FD1FA22CC8BEF0A5ECA82AA2C4ED5C905478C4A3C61FFEC1EB929433E8E973E5081511D0D30175BFAAA0626E8DBEFFE137C385FDE283BECD155200FD3C73E34488F4155BF68A1BA02A7D0E
+#define MAX_SHIFT 9 //Assignment-specified limit of shifting up til 9
+//A 2048-bit RC4 Key.
 #define RC4Key "0DDCD6C5BEA76DDB9BD70EB3EFC053B61000ABE01EC4BE2FD76DA841D549E7E225BDA7E46414BF00EBCDB3DA8D07909E073B7E26FF3D55D6AAFD177F47FE616CBB0850201C102007DDD3E16BDA7109E2AD8708ACC45D836F5B9AEEA299500E54585F74756F947C4C685EB742CFC0247C482C290C8AAC7BE5466A87DFBA953412F4A887633D04B0A56267E731280CAE7038D77CC283F8A7C9622EA91CC4DD2EB885B61CC2BACC671C334F4D5B5BFBCB93D248565540FD1FA22CC8BEF0A5ECA82AA2C4ED5C905478C4A3C61FFEC1EB929433E8E973E5081511D0D30175BFAAA0626E8DBEFFE137C385FDE283BECD155200FD3C73E34488F4155BF68A1BA02A7D0E"
 
 pthread_mutex_t count_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -25,7 +23,6 @@ enum RPCOperation {
     RPC_CLOSE,
 };
 
-// Structure for an RPC request
 struct RPCRequest {
     enum RPCOperation operation;
     char word[1024];
@@ -33,7 +30,6 @@ struct RPCRequest {
 };
 
 struct RPCResponse {
-    //char* word;
     char word[1024];
     int key;
 };
@@ -43,17 +39,10 @@ struct Encrypted {
     int key;
 };
 
-/*struct RPCResponse* create_RPC_Response(struct Encrypted* result, int socket){
-    struct RPCResponse* response = malloc(sizeof(struct RPCResponse));
-    strncpy(response->word, result->word, sizeof(response->word) - 1);
-    response->word[sizeof(response->word) - 1] = '\0';
-    response->key = result->key;
-    if (send(socket, response, sizeof(*response), 0) == -1) {
-        perror("send failed");
-        // Handle error
-    }
-    return response;
-}*/
+//Server Stub
+//Creates and sends an RPC response containing the encrypted/decrypted results
+//Sends the same response format for both encryption and decryption, as the client
+//Handles whether the key is necessary or not
 struct RPCResponse* create_RPC_Response(struct Encrypted* result, int socket) {
     struct RPCResponse* response = malloc(sizeof(struct RPCResponse));
     if (response == NULL) {
@@ -64,7 +53,7 @@ struct RPCResponse* create_RPC_Response(struct Encrypted* result, int socket) {
 
     size_t copy_length = sizeof(response->word) - 1;
     strncpy(response->word, result->word, copy_length);
-    response->word[copy_length] = '\0';  // Ensure null-termination
+    response->word[copy_length] = '\0';
 
     response->key = result->key;
 
@@ -77,7 +66,7 @@ struct RPCResponse* create_RPC_Response(struct Encrypted* result, int socket) {
 }
 
 
-// Function to generate a random number between 1 and 25
+// Function to generate a random number between 1 and the specified max shift
 int generate_random_key() {
     return (rand() % MAX_SHIFT) + 1;
 }
@@ -88,12 +77,20 @@ void swap(unsigned char *a, unsigned char *b) {
     *b = temp;
 }
 
+// Function to initialize the RC4 S-box
+// The substitution box is a sort of look-up table which is used when generating the keystream
+// During other parts of the RC4 encryption steps. It contains 256 values where the order is
+// Moved around based on the key length, and is used to generate the keystream.
+//The S-box is the overall first step for RC4
 void initialize_sbox(unsigned char *sbox, const unsigned char *key, size_t key_length) {
     int i;
+
+    // Step 1: Initialize the S-box with values 0 to 255
     for (i = 0; i < 256; i++) {
         sbox[i] = i;
     }
 
+    // Step 2: Randomize the S-box based on the provided key length
     size_t j = 0;
     for (i = 0; i < 256; i++) {
         j = (j + sbox[i] + key[i % key_length]) % 256;
@@ -101,21 +98,33 @@ void initialize_sbox(unsigned char *sbox, const unsigned char *key, size_t key_l
     }
 }
 
+// Function to perform RC4 encryption or decryption
 void rc4_crypt(const unsigned char *input, size_t length, unsigned char *output, const unsigned char *key, size_t key_length) {
     unsigned char sbox[256];
+
+    // Step 1: Initialize the S-box based on the provided key
     initialize_sbox(sbox, key, key_length);
 
     size_t i = 0, j = 0, k;
+
+    // Step 2: Generate a keystream based on the sbox and XOR it with the input data
     for (k = 0; k < length; k++) {
         i = (i + 1) % 256;
         j = (j + sbox[i]) % 256;
+        //i and j are used as indexes to go through the sbox, where their role is to 
+        //further randomize the sbox based on the key itself, instead of just the length
         swap(&sbox[i], &sbox[j]);
 
+        // Generates the next byte of the keystream based on the updated sbox
         unsigned char keystream = sbox[(sbox[i] + sbox[j]) % 256];
+        // XOR the input byte with the keystream byte to produce the output byte
         output[k] = input[k] ^ keystream;
     }
 }
 
+// Function to perform RC4 encryption
+// Given the word and key to use, identifies necessary parameters and passes it on to
+// rc4_crypt which does the actual encryption
 char *rc4_encrypt(const char *text, const char *key) {
     size_t text_length = strlen(text);
     unsigned char *encrypted = (unsigned char *)malloc(text_length + 1);
@@ -131,8 +140,8 @@ char *rc4_encrypt(const char *text, const char *key) {
 }
 
 // Function to apply RC4 decryption
+// Since it is symetric encryption, same steps as encryption. Hardcoded to use #define key
 char* rc4_decrypt(const char* text, const char* key) {
-    // RC4 decryption is the same as encryption
     return rc4_encrypt(text, RC4Key);
 }
 
@@ -151,7 +160,7 @@ char* caesar_cipher_encrypt(const char* text, int key) {
     for (i = 0; i < length; i++) {
         char c = text[i];
 
-        if (isalpha(c)) {
+        if (isalpha(c)) { // only alphabetic characters get shifted
             char base = islower(c) ? 'a' : 'A';
             encrypted[i] = (c - base + key) % 26 + base;
         } else {
@@ -168,40 +177,26 @@ char* caesar_cipher_decrypt(const char* text, int key) {
     return caesar_cipher_encrypt(text, 26 - key); // Decryption is the reverse of encryption
 }
 
-// Encode the text using Caesar cipher
+// Encrypts a given client word
+// First caesar shifts the word, then applies RC4 encryption to it and returns result
 struct Encrypted* server_encrypt(const char* text) {
     int key = generate_random_key();
-    //char caesar_encrypted[1024];
     char* rc4_encrypted;
 
-    // Check if text is NULL
     if (text == NULL) {
-        // Handle the case where text is NULL (optional)
         perror("Input text is NULL");
         return NULL;
     }
 
-    // Encrypt the text using Caesar cipher
     char* encrypted_text = caesar_cipher_encrypt(text, key);
 
     rc4_encrypted = rc4_encrypt(encrypted_text, RC4Key);
 
-    // Create an Encrypted struct to store the result
+    //Stores the result and caesar key in a struct to return with.
     struct Encrypted* ret = (struct Encrypted*)malloc(sizeof(struct Encrypted));
-    //strncpy(ret->word, rc4_encrypted, sizeof(ret->word) - 1);
-    //ret->word = encrypted_text;
-    //ret->word[sizeof(ret->word) - 1] = '\0';
-    //snprintf(ret->word, sizeof(ret->word), "%s", rc4_encrypted);
 
-    char buffer[1024];  // Use a writable buffer for manipulation
-
-    // Copy string literal to the buffer
+    char buffer[1024]; //Stores the resulting encrypted word
     snprintf(buffer, sizeof(buffer), "%s", rc4_encrypted);
-
-    // Now, buffer can be safely modified
-
-    //ret->word = 
-    // Allocate memory for ret->word and copy contents of buffer
     ret->word = strdup(buffer);
 
     // Check for memory allocation failure
@@ -215,22 +210,18 @@ struct Encrypted* server_encrypt(const char* text) {
     return ret;
 }
 
-// Decode the text using Caesar cipher
+// Decrypts a given client word
+// First decrypts using RC4 then caesar to undo order of encryption
 struct Encrypted* server_decrypt(const char* text, int key) {
-    // Check if text is NULL
     if (text == NULL) {
-        // Handle the case where text is NULL (optional)
         perror("Input text is NULL");
         return NULL;
     }
 
     char* rc4_decrypted = rc4_decrypt(text, "RC4_KEY");
-
-    // Decrypt the text using Caesar cipher
-    //char* decrypted_text = caesar_cipher_decrypt(text, key);
     char* decrypted_text = caesar_cipher_decrypt(rc4_decrypted, key);
 
-    // Create an Encrypted struct to store the result
+    //Stores the result in a struct to return with.
     struct Encrypted* ret = (struct Encrypted*)malloc(sizeof(struct Encrypted));
     ret->word = decrypted_text;
     ret->key = key;
@@ -238,7 +229,9 @@ struct Encrypted* server_decrypt(const char* text, int key) {
     return ret;
 }
 	
-// Function to handle an RPC request
+//Server stub to handle and process client requests
+//Checks the operation type to determine if client wants to encrypt/decrypt a word
+//Or close the connection and then calls the appropriate helper functions
 struct RPCResponse* handle_rpc_request(const struct RPCRequest* request, int socket) {
     struct Encrypted* result = malloc(sizeof(struct Encrypted));
     struct RPCResponse* response;
@@ -258,19 +251,22 @@ struct RPCResponse* handle_rpc_request(const struct RPCRequest* request, int soc
             return response;
         default:
 			printf("Given empty RPCRequest\n");
-            // Invalid operation
             break;
     }
     return NULL;
 }
 
-// Thread function to handle client requests
+// Server stub to handle a client connection
+// Responsible for processing a client connection as long as receiving requests from it
+// Upon receiving a request, fills out a RPCRequest struct to pass it to a stub to process
+// The request accordingly. Closes connection upon receiving a client request to do so or
+// Upon timeout due to no responses
 void* handle_client(void* client_socket) {
 	
     int socket_fd = *(int*)client_socket;
     struct timeval tv;
     int client_words_processed = 0;
-    tv.tv_sec = 1;
+    tv.tv_sec = 1; // Can modify how long to wait for a response before closing a connection
     tv.tv_usec = 0;
 
     if (setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) < 0) {
@@ -302,12 +298,12 @@ void* handle_client(void* client_socket) {
     if (bytes_received < 0) {
         if (errno == EWOULDBLOCK || errno == EAGAIN) {
             printf("Lost packet from one of the threads, please quit and re-run the client\n\n");
-            // Handle timeout-specific logic
         } else {
             perror("recv error");
-            // Handle other errors
         }
     }   
+
+    //Finished processing a client connection, can cleanup
     pthread_mutex_lock(&count_mutex);
     total_words_processed += client_words_processed;
     pthread_mutex_unlock(&count_mutex);
@@ -315,6 +311,8 @@ void* handle_client(void* client_socket) {
     return NULL;
 }
 
+// Main function
+// Responsible for ensuring proper arguments to start, creates a thread for each connection
 int main(int argc, char *argv[]) {
 
     // Check if a port is provided as a command-line argument
@@ -326,10 +324,8 @@ int main(int argc, char *argv[]) {
     int server_socket, new_socket, port;
     struct sockaddr_in server_addr, new_addr;
     socklen_t addr_size;
-    //pthread_t tid[MAX_CLIENTS];
     int clients_count = 0;
     port = atoi(argv[1]);
-    // Check if the conversion was successful
     if (port <= 0) {
         fprintf(stderr, "Invalid port number\n");
         exit(EXIT_FAILURE);
@@ -341,19 +337,16 @@ int main(int argc, char *argv[]) {
         perror("Error creating server socket");
         exit(EXIT_FAILURE);
     }
-    srand(time(NULL)); // Seed the random number generator
+    srand(time(NULL)); // Seeds the RNG for caesare cipher key generation
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(port);
     server_addr.sin_addr.s_addr = INADDR_ANY;
-
-    // Bind socket
     if (bind(server_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("Error binding server socket");
         exit(EXIT_FAILURE);
     }
 
-    // Listen for client connections
     if (listen(server_socket, 10) == 0) {
         printf("Server is listening on port %d...\n", port);
     } else {
@@ -383,4 +376,3 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
-
