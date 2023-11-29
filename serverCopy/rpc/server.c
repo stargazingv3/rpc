@@ -135,42 +135,6 @@ char* rc4_decrypt(const char* text, const char* key) {
     // RC4 decryption is the same as encryption
     return rc4_encrypt(text, RC4Key);
 }
-/*char* rc4_decrypt(const char* text, const char* key) {
-    // Replace encoded newline characters with actual newline characters
-    size_t length = strlen(text);
-    char* decoded_text = (char*)malloc(length + 1);
-    if (decoded_text == NULL) {
-        perror("Memory allocation failed");
-        exit(EXIT_FAILURE);
-    }
-
-    size_t i, j;
-    for (i = 0, j = 0; i < length - 1; i++) {
-        if (text[i] == '\\' && text[i + 1] == 'n') {
-            decoded_text[j++] = '\n';
-            i++; // Skip the next character ('\n' in "\\n")
-        } else {
-            decoded_text[j++] = text[i];
-        }
-    }
-
-    // Copy the last character or the only character if length is 1
-    if (i == length - 1) {
-        decoded_text[j++] = text[i];
-    }
-
-    decoded_text[j] = '\0'; // Ensure null-termination
-
-    // RC4 decryption is the same as encryption
-    /*char* decrypted = rc4_encrypt(decoded_text, key);
-
-    free(decoded_text); // Free the memory allocated for decoded_text
-
-    return decrypted;*/
-    /*return rc4_encrypt(decoded_text, key);
-}*/
-
-
 
 // Function to apply Caesar cipher encryption
 char* caesar_cipher_encrypt(const char* text, int key) {

@@ -156,17 +156,6 @@ void* handle_server_decryption(char* word, FILE* file){
     return NULL;
 }
 
-/*void* handle_server_encryption(char* word, int key, FILE* file){
-   
-    if (file == NULL) {
-        fprintf(stderr, "Invalid file pointer\n");
-        return NULL;
-    }
-
-    fprintf(file, "{%s : %d},", word, key); // Write directly to the passed file
-    return NULL;
-}*/
-
 void* handle_server_encryption(char* word, int key, FILE* file) {
     if (file == NULL) {
         fprintf(stderr, "Invalid file pointer\n");
@@ -190,11 +179,6 @@ void* handle_server_encryption(char* word, int key, FILE* file) {
     return NULL;
 }
 
-
-
-
-
-
 struct LineData {
     char* content;
     int key;
@@ -204,51 +188,6 @@ void freeLineData(struct LineData* data) {
     free(data->content);
     free(data);
 }
-
-/* LineData* parseLine(const char* line) {
-    struct LineData* data = (struct LineData*)malloc(sizeof(struct LineData));
-    if (data == NULL) {
-        fprintf(stderr, "Memory allocation error\n");
-        return NULL;
-    }
-
-    // Assuming the content can be any length
-    data->content = strdup(line);
-    if (data->content == NULL) {
-        fprintf(stderr, "Memory allocation error\n");
-        free(data);
-        return NULL;
-    }
-
-    // Exclude the first and last characters from content
-    size_t lineLength = strlen(line);
-    if (lineLength >= 2) {
-        data->content = strdup(line + 1);
-        data->content[lineLength - 2] = '\0';  // Null-terminate excluding the last character
-    } else {
-        fprintf(stderr, "Invalid format: %s\n", line);
-        freeLineData(data);
-        return NULL;
-    }
-
-    // Parse the key from the content
-    char* keyStr = strstr(data->content, " : ");
-    if (keyStr == NULL) {
-        fprintf(stderr, "Invalid format: %s\n", line);
-        freeLineData(data);
-        return NULL;
-    }
-
-    *keyStr = '\0';  // Null-terminate the content
-    keyStr += 3;     // Move past " : "
-    if (sscanf(keyStr, "%d", &(data->key)) != 1) {
-        fprintf(stderr, "Error parsing key: %s\n", line);
-        freeLineData(data);
-        return NULL;
-    }
-
-    return data;
-}*/
 
 struct LineData* parseLine(const char* line) {
     struct LineData* data = (struct LineData*)malloc(sizeof(struct LineData));
@@ -312,137 +251,6 @@ struct LineData* parseLine(const char* line) {
 
     return data;
 }
-
-
-    /*// Parse the key from the content
-    char* keyStr = strstr(data->content, " : ");
-    if (keyStr == NULL) {
-        fprintf(stderr, "Invalid format: %s\n", line);
-        freeLineData(data);
-        return NULL;
-    }
-
-    *keyStr = '\0';  // Null-terminate the content
-    keyStr += 3;     // Move past " : "
-    if (sscanf(keyStr, "%d", &(data->key)) != 1) {
-        fprintf(stderr, "Error parsing key: %s\n", line);
-        freeLineData(data);
-        return NULL;
-    }
-
-    return data;
-}*/
-
-/*
-void* decryptFile(const char* file_name) {
-    char line[256];
-    int words_processed = 0;
-
-    FILE* file = fopen(file_name, "rb");
-    if (file == NULL) {
-        perror("Failed to open input file");
-        return NULL;
-    }
-
-    // Ignore the first line
-    if (fgets(line, sizeof(line), file) == NULL) {
-        fclose(file);
-        return NULL;
-    }
-
-    // Read and process subsequent lines
-    enum RPCOperation operation = RPC_DECRYPT;
-    int socket = connect_to_server();
-    size_t file_size = strlen(file_name) + strlen("_dec") + 1;
-    char* name = (char*)malloc(file_size);
-    if (name == NULL) {
-        fprintf(stderr, "Memory allocation error\n");
-        fclose(file);
-        return NULL;
-    }
-
-    snprintf(name, file_size, "%s_dec", file_name);
-    FILE* dec_file = fopen(name, "w");
-
-    if (dec_file == NULL) {
-        perror("Failed to open decryption output file");
-        free(name);
-        fclose(file);
-        return NULL;
-    }
-
-while (fgets(line, sizeof(line), file) != NULL) {
-    // Assuming the entries are separated by commas within curly braces
-    char* token = strtok(line, ",");
-    
-    while (token != NULL) {
-        // Process each entry using parseLine
-        //printf("Sending token: %s\n", token);
-        printf("Sending Token: ");
-        for (int i = 0; token[i] != '\0'; ++i) {
-            printf("%02X ", token[i]);
-        }
-        printf("Text ver: %s\n", token);
-        printf("\n");
-        struct LineData* data = parseLine(token);
-        if (data != NULL) {
-            create_RPC_Request(operation, data->content, data->key, socket);
-            struct RPCResponse* response = receive_RPC_response(socket);
-            if (response) {
-                handle_server_decryption(response->word, dec_file);
-                free(response);
-                words_processed++;
-            }
-            freeLineData(data);
-        } else {
-            // Parsing failed for an entry
-            printf("Error parsing entry: %s\n", token);
-            fclose(dec_file);
-            fclose(file);
-            free(name);
-            return NULL;
-        }
-
-        // Move to the next entry
-        token = strtok(NULL, ",");
-    }
-}
-
-    /*while (fgets(line, sizeof(line), file) != NULL) {
-        struct LineData* data = parseLine(line);
-        if (data != NULL) {
-            create_RPC_Request(operation, data->content, data->key, socket);
-            struct RPCResponse* response = receive_RPC_response(socket);
-            if (response) {
-                handle_server_decryption(response->word, dec_file);
-                free(response);
-                words_processed++;
-            }
-            freeLineData(data);
-        } else {
-            // Parsing failed
-            printf("Error parsing line: %s\n", line);
-            printf("%s does not contain only cipher : key, will not process this file.\n", file_name);
-            fclose(dec_file);
-            fclose(file);
-            free(name);
-            return NULL;
-        }
-    }*/
-
-    /*operation = RPC_CLOSE;
-    create_RPC_Request(operation, line, 0, socket);  // Adjust accordingly if the line needs to be processed
-    close(socket);
-    free(name);
-    printf("Words processed in %s: %d\n", file_name, words_processed);
-    pthread_mutex_lock(&total_words_mutex);
-    total_words_processed += words_processed;
-    pthread_mutex_unlock(&total_words_mutex);
-    fprintf(dec_file, "\n");
-    fclose(dec_file);
-    fclose(file);
-    return NULL;
-}*/
 
 void* decryptFile(const char* file_name) {
     char line[256];
@@ -551,75 +359,6 @@ void* decryptFile(const char* file_name) {
     fclose(file);
     return NULL;
 }
-
-
-/*void* decryptFile(const char* file_name){
-    char line[256]; // Assuming a maximum line length of 255 characters
-    char word[256];
-    int number;
-    int words_processed = 0;
-
-    FILE *file = fopen(file_name, "r");
-    if (file == NULL) {
-        perror("Failed to open input file");
-        return NULL;
-    }
-
-    // Ignore the first line
-   // if (fgets(line, sizeof(line), file) == NULL) {
-    //}
-    if (fgets(line, sizeof(line) / sizeof(line[0]), file) == NULL) {
-    }
-
-    // Read and process subsequent lines
-    enum RPCOperation operation = RPC_DECRYPT;
-    int socket = connect_to_server();
-    size_t file_size = strlen(file_name) + strlen("_dec") + 1;
-    char* name = (char*)malloc(file_size);
-    if(name == NULL){
-        fprintf(stderr, "Memory allocation error\n");
-        fclose(file);
-        return NULL;
-    }
-
-    snprintf(name, file_size, "%s_dec", file_name);
-    FILE* dec_file = fopen(name, "w");
-    
-    if (dec_file == NULL) {
-        perror("Failed to open decryption output file");
-        fclose(file);
-        return NULL;
-    }
-
-    while (fgets(line, sizeof(line), file) != NULL) {
-        if (sscanf(line, "%s : %d", word, &number) == 2) {
-            create_RPC_Request(operation, word, number, socket);
-            struct RPCResponse* response = receive_RPC_response(socket);
-            if (response) {
-                handle_server_decryption(response->word, dec_file);
-                free(response);
-                words_processed++;
-            }
-        } else {    
-            // Parsing failed
-            printf("Error parsing line: %s\n", line);
-            printf("%s does not contain only cipher : key, will not process this file.\n", file_name);
-            return NULL;
-        }
-    }
-
-    operation = RPC_CLOSE;
-    create_RPC_Request(operation, word, number, socket);
-    close(socket);
-    free(name);
-    printf("Words processed in %s: %d\n", file_name, words_processed);
-    pthread_mutex_lock(&total_words_mutex);
-    total_words_processed += words_processed;
-    pthread_mutex_unlock(&total_words_mutex);
-    fclose(dec_file);
-    fclose(file);
-    return NULL;
-}*/
 
 void* encryptFile(const char* file_name){
     //printf("Encrypting file %s\n", file_name);
