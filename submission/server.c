@@ -210,17 +210,15 @@ struct Encrypted* server_encrypt(const char* text) {
     return ret;
 }
 
+//This function is needed to replace the newline encoding with actual new lines
+//Before passing it to decryp
 char* undo_server_encryption(const char* encoded_text) {
     if (encoded_text == NULL) {
         perror("Input text is NULL");
         return NULL;
     }
 
-    // Calculate the length of the original text
     size_t encoded_length = strlen(encoded_text);
-    size_t original_length = 0;
-
-    // Allocate memory for the original text
     char* original_text = (char*)malloc(encoded_length + 1);  // +1 for the null terminator
 
     if (original_text == NULL) {
@@ -246,7 +244,7 @@ char* undo_server_encryption(const char* encoded_text) {
         }
     }
 
-    original_text[j] = '\0';  // Null-terminate the string
+    original_text[j] = '\0';
 
     return original_text;
 }

@@ -47,7 +47,6 @@ int main(int argc, char* argv[]) {
             //printWordssLinkedList(temp);
             printWordsLinkedListReverse(wordList);
             int wordsInFile = 10;
-			int uniqueWords = getLinkedListLength(wordList);
 			
             //printf("\nThe total number of words is %d; the number of different words is %d.\n",
                    //wordsInFile, uniqueWords);

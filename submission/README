@@ -1,0 +1,30 @@
+a. The status of the program is completed, including both extra credits.
+    The program works perfectly for encryption, but for decryption, sometimes some of 
+    the client program's threads will freeze trying to sending a message to the server and failing. I am not sure why this is.
+b. To compile, simply run Make Clean and then Make. This will create server, client, 
+    and word-count binaries. To run, run ./server PORT on one terminal and 
+    ./client IP PORT file1, file2, ... on a second one.
+c. I did not receive any help from anyone
+d. How-to-use
+    To encrypt, any input file can be given as long as the first line doesn't contain
+    the magic signature specified in the #define of client.c, as that file will
+    instead be decrypted.
+        After encrypting a file, the output will be a file with 2 lines, with the first
+        line being the magic number to denote it is encrypted, and the 2nd line having
+        a dictionary following the form {encrypted : key},
+    To decrypt, the first line of the file must be only the magic signature. This is
+    done automatically by the program when saving the output of encryption.
+        After decrypting a file, the output will be a file containing a single line
+        with all the decrypted words separated by a space.
+    As specified above, occasionally the client program will freeze and not process certain threads when decypting. If this happens, please re-run the program a couple 
+    of times, but not too quickly until it works. This error overall appears to be random
+    but streaky, where when re-runnig it consecutively, it will work 2-3 times in a row
+    but then freeze 3-5 or even more times. This problem is exacerbated on the fox 
+    machines, where the program can freeze over 10 times in a row before a 100% 
+    successful run.
+e. Extra Credit
+    For the additional pair of encrypt/decrypt functions, I implemented 2048-bit RC4. The server will encrypt with caesar first and then RC4, and will decrypt with RC4 first and then caesar to undo. 
+    For customized enhancement, I made the program automatically detect whether to 
+    encrypt or decrypt a file by checking for a magic signature to tell if it was a file
+    which was compatible to decrypt with, else to encrypt. In addition, the program will save it's output files to the relative path as given to it in the input, instead of
+    the current directory for ease of use.
